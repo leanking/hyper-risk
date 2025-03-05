@@ -65,7 +65,7 @@ The system is configured primarily through environment variables, which can be s
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `WALLET_ADDRESS` | Your HyperLiquid wallet address (0x format) | `0xC9739116b8759B5a0B5834Ed62E218676EA9776F` |
+| `WALLET_ADDRESS` | Your HyperLiquid wallet address (0x format) | `0xdfc24b077bc1425ad1dea75bcb6f8158e10df303` |
 
 ### Optional Environment Variables
 
@@ -102,7 +102,7 @@ All risk limits are optional and have sensible defaults:
 
 ```
 # Required
-export WALLET_ADDRESS=0xC9739116b8759B5a0B5834Ed62E218676EA9776F
+export WALLET_ADDRESS=0xC9739116b8759B5a0B0xdfc24b077bc1425ad1dea75bcb6f8158e10df3035834Ed62E218676EA9776F
 
 # Optional with defaults
 export API_URL=https://api.hyperliquid.xyz
