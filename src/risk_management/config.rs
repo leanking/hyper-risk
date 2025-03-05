@@ -1,6 +1,8 @@
 use ethers::types::H160;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 
 use crate::helpers::BaseUrl;
@@ -38,6 +40,13 @@ pub struct RiskLimits {
     pub max_margin_utilization: f64,
 }
 
+/// User settings that can be modified through the dashboard
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSettings {
+    pub wallet_address: String,
+    pub risk_limits: RiskLimits,
+}
+
 impl Default for RiskLimits {
     fn default() -> Self {
         Self {
@@ -53,11 +62,18 @@ impl Default for RiskLimits {
 }
 
 impl RiskConfig {
-    /// Creates a new configuration from environment variables
+    /// Creates a new configuration from environment variables and user settings file
     pub fn from_env() -> Result<Self> {
-        // Required values
-        let wallet_address_str = env::var("WALLET_ADDRESS")
-            .map_err(|_| Error::Custom("WALLET_ADDRESS environment variable not set".to_string()))?;
+        // Try to load user settings from file first
+        let user_settings = Self::load_user_settings();
+        
+        // Required values - first try user settings, then environment variables
+        let wallet_address_str = if let Some(settings) = &user_settings {
+            settings.wallet_address.clone()
+        } else {
+            env::var("WALLET_ADDRESS")
+                .map_err(|_| Error::Custom("WALLET_ADDRESS environment variable not set".to_string()))?
+        };
         
         let wallet_address = H160::from_str(&wallet_address_str)
             .map_err(|_| Error::Custom("Invalid WALLET_ADDRESS format".to_string()))?;
@@ -94,8 +110,12 @@ impl RiskConfig {
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(60);
         
-        // Risk limits from environment variables or default
-        let risk_limits = Self::risk_limits_from_env();
+        // Risk limits - first try user settings, then environment variables
+        let risk_limits = if let Some(settings) = user_settings {
+            settings.risk_limits
+        } else {
+            Self::risk_limits_from_env()
+        };
         
         Ok(Self {
             wallet_address,
@@ -157,5 +177,74 @@ impl RiskConfig {
         }
         
         limits
+    }
+    
+    /// Loads user settings from a JSON file
+    fn load_user_settings() -> Option<UserSettings> {
+        let settings_path = Path::new("user_settings.json");
+        if !settings_path.exists() {
+            return None;
+        }
+        
+        match fs::read_to_string(settings_path) {
+            Ok(contents) => {
+                match serde_json::from_str::<UserSettings>(&contents) {
+                    Ok(settings) => {
+                        // Validate wallet address format
+                        if H160::from_str(&settings.wallet_address).is_err() {
+                            eprintln!("Warning: Invalid wallet address format in user_settings.json");
+                            return None;
+                        }
+                        Some(settings)
+                    },
+                    Err(e) => {
+                        eprintln!("Warning: Failed to parse user_settings.json: {}", e);
+                        None
+                    },
+                }
+            },
+            Err(e) => {
+                eprintln!("Warning: Failed to read user_settings.json: {}", e);
+                None
+            },
+        }
+    }
+    
+    /// Saves user settings to a JSON file
+    pub fn save_user_settings(settings: &UserSettings) -> Result<()> {
+        let settings_path = Path::new("user_settings.json");
+        let json = serde_json::to_string_pretty(settings)
+            .map_err(|e| Error::Custom(format!("Failed to serialize settings: {}", e)))?;
+        
+        fs::write(settings_path, json)
+            .map_err(|e| Error::Custom(format!("Failed to write settings file: {}", e)))?;
+        
+        Ok(())
+    }
+    
+    /// Gets the current user settings
+    pub fn get_user_settings(&self) -> UserSettings {
+        UserSettings {
+            wallet_address: format!("0x{:x}", self.wallet_address),
+            risk_limits: self.risk_limits.clone(),
+        }
+    }
+    
+    /// Updates the configuration with new user settings
+    pub fn update_from_settings(&mut self, settings: UserSettings) -> Result<()> {
+        // Update wallet address
+        let wallet_address = H160::from_str(&settings.wallet_address)
+            .map_err(|_| Error::Custom("Invalid wallet address format".to_string()))?;
+        
+        self.wallet_address = wallet_address;
+        self.risk_limits = settings.risk_limits.clone();
+        
+        // Save the settings to file
+        Self::save_user_settings(&UserSettings {
+            wallet_address: settings.wallet_address,
+            risk_limits: self.risk_limits.clone(),
+        })?;
+        
+        Ok(())
     }
 } 

@@ -43,6 +43,11 @@ impl DataLogger {
         }
     }
     
+    /// Updates the configuration
+    pub fn update_config(&mut self, config: RiskConfig) {
+        self.config = config;
+    }
+    
     /// Logs position and risk metrics data
     pub fn log_metrics(
         &self,

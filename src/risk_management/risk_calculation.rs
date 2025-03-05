@@ -12,6 +12,11 @@ impl RiskCalculator {
         Self { config }
     }
     
+    /// Updates the configuration
+    pub fn update_config(&mut self, config: RiskConfig) {
+        self.config = config;
+    }
+    
     /// Calculates portfolio-level risk metrics
     pub fn calculate_portfolio_metrics(&self, positions: &[Position], account_summary: &AccountSummary) -> Result<PortfolioMetrics> {
         if positions.is_empty() {

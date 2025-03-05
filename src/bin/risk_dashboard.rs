@@ -145,16 +145,19 @@ async fn get_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Respond
     
     match risk_system.get_risk_summary().await {
         Ok(summary) => {
+            let highest_risk = summary.highest_risk_position.clone().map(|(pos, score)| {
+                json!({
+                    "coin": pos.coin,
+                    "risk_score": score
+                })
+            });
+            
             let response = json!({
                 "portfolio_heat": summary.portfolio_heat,
-                "highest_risk_position": summary.highest_risk_position.map(|(pos, score)| {
-                    json!({
-                        "coin": pos.coin,
-                        "risk_score": score
-                    })
-                }),
+                "highest_risk_position": highest_risk,
                 "warning_count": summary.warning_count,
-                "margin_utilization": summary.margin_utilization
+                "margin_utilization": summary.margin_utilization,
+                "account_value": summary.account_value
             });
             
             Ok(HttpResponse::Ok().json(response))
@@ -163,6 +166,73 @@ async fn get_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Respond
             error!("Failed to get risk summary: {}", e);
             Ok(HttpResponse::InternalServerError().json(json!({
                 "error": format!("Failed to get risk summary: {}", e)
+            })))
+        }
+    }
+}
+
+// API endpoint to get the current settings
+async fn get_settings(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    let risk_system = data.risk_system.lock().unwrap();
+    let settings = risk_system.get_config().get_user_settings();
+    
+    Ok(HttpResponse::Ok().json(settings))
+}
+
+// API endpoint to update settings
+async fn update_settings(
+    data: web::Data<Arc<AppState>>,
+    settings: web::Json<hyperliquid_rust_sdk::risk_management::UserSettings>,
+) -> Result<impl Responder> {
+    let mut risk_system = data.risk_system.lock().unwrap();
+    
+    match risk_system.update_settings(settings.into_inner()) {
+        Ok(_) => {
+            Ok(HttpResponse::Ok().json(json!({
+                "status": "success",
+                "message": "Settings updated successfully"
+            })))
+        },
+        Err(e) => {
+            error!("Failed to update settings: {}", e);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "error": format!("Failed to update settings: {}", e)
+            })))
+        }
+    }
+}
+
+// Debug endpoint to check what's happening with the risk summary
+async fn debug_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    let mut risk_system = data.risk_system.lock().unwrap();
+    
+    match risk_system.get_risk_summary().await {
+        Ok(summary) => {
+            // Log the summary for debugging
+            info!("Debug risk summary: {:?}", &summary);
+            
+            let highest_risk = summary.highest_risk_position.clone().map(|(pos, score)| {
+                json!({
+                    "coin": pos.coin,
+                    "risk_score": score
+                })
+            });
+            
+            let response = json!({
+                "portfolio_heat": summary.portfolio_heat,
+                "highest_risk_position": highest_risk,
+                "warning_count": summary.warning_count,
+                "margin_utilization": summary.margin_utilization,
+                "account_value": summary.account_value,
+                "debug": format!("{:?}", summary)
+            });
+            
+            Ok(HttpResponse::Ok().json(response))
+        },
+        Err(e) => {
+            error!("Failed to get debug risk summary: {}", e);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "error": format!("Failed to get debug risk summary: {}", e)
             })))
         }
     }
@@ -203,21 +273,45 @@ async fn main() -> std::io::Result<()> {
     println!("            HYPERLIQUID RISK DASHBOARD                  ");
     println!("========================================================");
     
-    // Load configuration from environment variables
+    // Check if user_settings.json exists, if not, create it from .env values
+    let settings_path = std::path::Path::new("user_settings.json");
+    if !settings_path.exists() {
+        // Load configuration from environment variables
+        let config = match RiskConfig::from_env() {
+            Ok(config) => config,
+            Err(e) => {
+                error!("Failed to load configuration: {}", e);
+                println!("\nConfiguration Error: {}", e);
+                println!("\nPlease set the required environment variables or create settings through the dashboard.");
+                println!("  WALLET_ADDRESS: Your Hyperliquid wallet address (required)");
+                println!("  API_URL: Hyperliquid API URL (optional, defaults to mainnet)");
+                println!("  LOG_TO_CONSOLE: Whether to log to console (optional, defaults to true)");
+                println!("  LOG_TO_DATABASE: Whether to log to database (optional, defaults to false)");
+                println!("  SUPABASE_URL: Supabase URL (required if LOG_TO_DATABASE is true)");
+                println!("  SUPABASE_KEY: Supabase API key (required if LOG_TO_DATABASE is true)");
+                println!("  LOG_INTERVAL_SECONDS: How often to log data (optional, defaults to 60)");
+                println!();
+                return Ok(());
+            }
+        };
+        
+        // Create initial user settings file from config
+        let user_settings = config.get_user_settings();
+        if let Err(e) = RiskConfig::save_user_settings(&user_settings) {
+            error!("Failed to create initial user settings file: {}", e);
+            println!("Warning: Failed to create initial user settings file: {}", e);
+        } else {
+            println!("Created initial user settings file from environment variables.");
+        }
+    }
+    
+    // Load configuration from user settings file or environment variables
     let config = match RiskConfig::from_env() {
         Ok(config) => config,
         Err(e) => {
             error!("Failed to load configuration: {}", e);
             println!("\nConfiguration Error: {}", e);
-            println!("\nPlease set the required environment variables:");
-            println!("  WALLET_ADDRESS: Your Hyperliquid wallet address (required)");
-            println!("  API_URL: Hyperliquid API URL (optional, defaults to mainnet)");
-            println!("  LOG_TO_CONSOLE: Whether to log to console (optional, defaults to true)");
-            println!("  LOG_TO_DATABASE: Whether to log to database (optional, defaults to false)");
-            println!("  SUPABASE_URL: Supabase URL (required if LOG_TO_DATABASE is true)");
-            println!("  SUPABASE_KEY: Supabase API key (required if LOG_TO_DATABASE is true)");
-            println!("  LOG_INTERVAL_SECONDS: How often to log data (optional, defaults to 60)");
-            println!();
+            println!("\nPlease set the required environment variables or create settings through the dashboard.");
             return Ok(());
         }
     };
@@ -254,30 +348,30 @@ async fn main() -> std::io::Result<()> {
             loop {
                 interval.tick().await;
                 
-                // Lock the mutex, perform the analysis, and then drop the lock
-                let result = {
-                    let mut risk_system = app_state_clone.risk_system.lock().unwrap();
-                    risk_system.analyze_risk_profile().await
-                };
+                // Get a lock on the risk system
+                let mut risk_system = app_state_clone.risk_system.lock().unwrap();
                 
-                match result {
-                    Ok(_) => info!("Updated risk analysis"),
-                    Err(e) => error!("Failed to update risk analysis: {}", e),
+                // Perform risk analysis
+                match risk_system.analyze_risk_profile().await {
+                    Ok(_) => {
+                        info!("Updated risk analysis");
+                    },
+                    Err(e) => {
+                        error!("Failed to update risk analysis: {}", e);
+                    }
                 }
             }
         });
     });
     
-    // Get the port from environment or use default
+    // Start the HTTP server
     let port = env::var("DASHBOARD_PORT")
-        .unwrap_or_else(|_| "8080".to_string())
-        .parse::<u16>()
+        .ok()
+        .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(8080);
     
     println!("Starting dashboard server on http://localhost:{}", port);
-    println!("Press Ctrl+C to exit");
     
-    // Start web server
     HttpServer::new(move || {
         // Configure CORS
         let cors = Cors::default()
@@ -290,11 +384,14 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .app_data(web::Data::new(app_state.clone()))
             // API routes
-            .service(web::resource("/api/risk/analysis").route(web::get().to(get_risk_analysis)))
-            .service(web::resource("/api/risk/summary").route(web::get().to(get_risk_summary)))
-            .service(web::resource("/api/positions").route(web::get().to(get_positions)))
-            .service(web::resource("/api/metrics/{metric_name}").route(web::get().to(get_metric_history)))
-            .service(web::resource("/api/positions/{coin}/{metric_name}").route(web::get().to(get_position_history)))
+            .route("/api/risk_analysis", web::get().to(get_risk_analysis))
+            .route("/api/risk_summary", web::get().to(get_risk_summary))
+            .route("/api/positions", web::get().to(get_positions))
+            .route("/api/metrics/{metric}", web::get().to(get_metric_history))
+            .route("/api/positions/{coin}/{metric}", web::get().to(get_position_history))
+            .route("/api/settings", web::get().to(get_settings))
+            .route("/api/settings", web::post().to(update_settings))
+            .route("/api/debug/risk_summary", web::get().to(debug_risk_summary))
             // Static files
             .service(fs::Files::new("/", "dashboard/static").index_file("index.html"))
     })

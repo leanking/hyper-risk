@@ -14,6 +14,11 @@ impl RiskLimiter {
         Self { config }
     }
     
+    /// Updates the configuration
+    pub fn update_config(&mut self, config: RiskConfig) {
+        self.config = config;
+    }
+    
     /// Checks risk metrics against thresholds and generates warnings
     pub fn check_thresholds(
         &self,

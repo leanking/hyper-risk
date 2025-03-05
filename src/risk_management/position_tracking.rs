@@ -8,10 +8,11 @@ pub struct PositionTracker {
     info_client: InfoClient,
     wallet_address: H160,
     last_positions: Vec<Position>,
+    pub config: RiskConfig,
 }
 
 impl PositionTracker {
-    /// Creates a new position tracker
+    /// Creates a new position tracker with the provided configuration
     pub async fn new(config: RiskConfig) -> Result<Self> {
         let info_client = InfoClient::new(None, Some(config.base_url)).await?;
         
@@ -19,7 +20,14 @@ impl PositionTracker {
             info_client,
             wallet_address: config.wallet_address,
             last_positions: Vec::new(),
+            config,
         })
+    }
+    
+    /// Updates the configuration
+    pub fn update_config(&mut self, config: RiskConfig) {
+        self.wallet_address = config.wallet_address;
+        self.config = config;
     }
     
     /// Fetches current positions from the Hyperliquid API

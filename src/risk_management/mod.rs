@@ -38,6 +38,25 @@ impl RiskManagementSystem {
         })
     }
 
+    /// Gets the current configuration
+    pub fn get_config(&self) -> RiskConfig {
+        self.position_tracker.config.clone()
+    }
+    
+    /// Updates the system with new user settings
+    pub fn update_settings(&mut self, settings: UserSettings) -> Result<()> {
+        // Update the configuration in each component
+        let mut config = self.position_tracker.config.clone();
+        config.update_from_settings(settings)?;
+        
+        self.position_tracker.update_config(config.clone());
+        self.risk_calculator.update_config(config.clone());
+        self.risk_limiter.update_config(config.clone());
+        self.data_logger.update_config(config);
+        
+        Ok(())
+    }
+
     /// Performs a full analysis of the current risk profile, calculating all metrics
     pub async fn analyze_risk_profile(&mut self) -> Result<RiskAnalysisResult> {
         // Get current positions

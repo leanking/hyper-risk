@@ -3,6 +3,7 @@ let refreshInterval;
 let selectedPosition = '';
 let charts = {};
 let lastAccountValue = null; // Store the last known account value
+let currentSettings = {}; // Store current settings
 
 // DOM elements
 const refreshDataBtn = document.getElementById('refreshData');
@@ -18,9 +19,32 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshAllData();
     });
     
+    // Debug button
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+    debugBtn.innerHTML = '<i class="fas fa-bug"></i> Debug';
+    debugBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        debugAPI();
+    });
+    document.querySelector('.navbar-nav').prepend(debugBtn);
+    
     positionSelect.addEventListener('change', function() {
         selectedPosition = this.value;
         updatePositionMetricsChart();
+    });
+    
+    // Set up settings button
+    document.getElementById('settingsBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        loadSettings();
+        $('#settingsModal').modal('show');
+    });
+    
+    // Set up settings form submission
+    document.getElementById('settingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveSettings();
     });
     
     // Set up dark mode toggle
@@ -59,6 +83,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up auto-refresh (every 60 seconds)
     refreshInterval = setInterval(refreshAllData, 60000);
+    
+    // Add debug button
+    addDebugButton();
 });
 
 // Redraw all charts to apply theme changes
@@ -139,7 +166,7 @@ async function refreshAllData() {
 // Load risk summary data
 async function loadRiskSummary() {
     try {
-        const response = await fetch('/api/risk/summary');
+        const response = await fetch('/api/risk_summary');
         const data = await response.json();
         
         // Update summary cards
@@ -153,13 +180,11 @@ async function loadRiskSummary() {
 // Load risk analysis data
 async function loadRiskAnalysis() {
     try {
-        const response = await fetch('/api/risk/analysis');
+        const response = await fetch('/api/risk_analysis');
         const data = await response.json();
         
-        // Update positions table
+        // Update positions table and warnings
         updatePositionsTable(data.positions, data.position_metrics);
-        
-        // Update warnings
         updateWarnings(data.warnings);
     } catch (error) {
         console.error('Error loading risk analysis:', error);
@@ -184,14 +209,37 @@ async function loadPositions() {
 // Load metric history data
 async function loadMetricHistory(metricName, updateChartFunction, label = null) {
     try {
+        console.log(`Loading metric history for ${metricName}...`);
         const response = await fetch(`/api/metrics/${metricName}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
+        console.log(`Received data for ${metricName}:`, data);
+        
+        // Check if data is valid
+        if (!data || !data.data || !Array.isArray(data.data)) {
+            console.error(`Invalid data format for ${metricName}:`, data);
+            throw new Error(`Invalid data format for ${metricName}`);
+        }
+        
+        // Check if we have any data points
+        if (data.data.length === 0) {
+            console.warn(`No data points for ${metricName}`);
+            // Create empty chart to avoid errors
+            updateChartFunction({data: []}, label);
+            return;
+        }
         
         // Update the chart
         updateChartFunction(data, label);
     } catch (error) {
         console.error(`Error loading ${metricName} history:`, error);
-        throw error;
+        showError(`Failed to load ${metricName} data: ${error.message}`);
+        // Create empty chart to avoid errors
+        updateChartFunction({data: []}, label);
     }
 }
 
@@ -447,6 +495,19 @@ function updatePositionSelect(positions) {
 function updatePnlChart(data) {
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     
+    // Check if we have valid data
+    if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        console.warn("No PnL data available to display");
+        // Clear the chart or show empty state
+        if (charts.pnl) {
+            Plotly.purge('pnlChart');
+            charts.pnl = null;
+        }
+        return;
+    }
+    
+    console.log("Updating PnL chart with data:", data);
+    
     // Prepare data for the chart
     const timestamps = data.data.map(item => new Date(item.timestamp * 1000));
     const values = data.data.map(item => item.value);
@@ -503,10 +564,16 @@ function updatePnlChart(data) {
         displayModeBar: false
     };
     
-    if (!charts.pnl) {
-        charts.pnl = Plotly.newPlot('pnlChart', chartData, layout, config);
-    } else {
-        Plotly.react('pnlChart', chartData, layout, config);
+    try {
+        if (!charts.pnl) {
+            charts.pnl = Plotly.newPlot('pnlChart', chartData, layout, config);
+        } else {
+            Plotly.react('pnlChart', chartData, layout, config);
+        }
+        console.log("PnL chart updated successfully");
+    } catch (error) {
+        console.error("Error updating PnL chart:", error);
+        showError("Failed to update PnL chart: " + error.message);
     }
 }
 
@@ -568,73 +635,55 @@ function updateAccountValueChart(data) {
 function updateRiskMetricsChart(data, label) {
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     
-    if (!charts.riskMetrics) {
-        // Initialize the chart with the first dataset
-        const timestamps = data.data.map(item => new Date(item.timestamp * 1000));
-        const values = data.data.map(item => item.value);
-        
-        const chartData = [{
-            x: timestamps,
-            y: values,
-            type: 'scatter',
-            mode: 'lines',
-            name: label,
-            line: {
-                width: 2
-            }
-        }];
-        
-        const layout = {
-            margin: { t: 10, r: 10, b: 40, l: 60 },
-            xaxis: {
-                title: 'Time',
-                showgrid: false,
-                color: isDarkMode ? '#e9ecef' : '#212529',
-                linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-            },
-            yaxis: {
-                title: 'Value',
-                showgrid: true,
-                gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                color: isDarkMode ? '#e9ecef' : '#212529',
-                linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-            },
-            showlegend: true,
-            legend: {
-                orientation: 'h',
-                y: 1.1,
-                font: {
+    // Check if we have valid data
+    if (!data || !data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        console.warn(`No Risk Metrics data available to display for ${label}`);
+        // If this is the first call and no data, clear the chart
+        if (!charts.riskMetrics) {
+            const emptyChart = [{
+                x: [],
+                y: [],
+                type: 'scatter',
+                mode: 'lines',
+                name: label || 'No Data'
+            }];
+            
+            const layout = {
+                margin: { t: 10, r: 10, b: 40, l: 60 },
+                xaxis: {
+                    title: 'Time',
+                    showgrid: false,
                     color: isDarkMode ? '#e9ecef' : '#212529'
-                }
-            },
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            paper_bgcolor: 'rgba(0,0,0,0)'
-        };
-        
-        const config = {
-            responsive: true,
-            displayModeBar: false
-        };
-        
-        charts.riskMetrics = Plotly.newPlot('riskMetricsChart', chartData, layout, config);
-    } else {
-        // Add or update the dataset
-        const timestamps = data.data.map(item => new Date(item.timestamp * 1000));
-        const values = data.data.map(item => item.value);
-        
-        // Check if this trace already exists
-        const chartDiv = document.getElementById('riskMetricsChart');
-        const existingTraceIndex = chartDiv.data.findIndex(trace => trace.name === label);
-        
-        if (existingTraceIndex >= 0) {
-            // Update existing trace
-            Plotly.restyle('riskMetricsChart', {
-                x: [timestamps],
-                y: [values]
-            }, [existingTraceIndex]);
-        } else {
-            // Add new trace
-            const newTrace = {
+                },
+                yaxis: {
+                    title: 'Value',
+                    showgrid: true,
+                    color: isDarkMode ? '#e9ecef' : '#212529'
+                },
+                showlegend: true,
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)'
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: false
+            };
+            
+            charts.riskMetrics = Plotly.newPlot('riskMetricsChart', emptyChart, layout, config);
+        }
+        return;
+    }
+    
+    console.log(`Updating Risk Metrics chart with data for ${label}:`, data);
+    
+    try {
+        if (!charts.riskMetrics) {
+            // Initialize the chart with the first dataset
+            const timestamps = data.data.map(item => new Date(item.timestamp * 1000));
+            const values = data.data.map(item => item.value);
+            
+            const chartData = [{
                 x: timestamps,
                 y: values,
                 type: 'scatter',
@@ -643,30 +692,97 @@ function updateRiskMetricsChart(data, label) {
                 line: {
                     width: 2
                 }
+            }];
+            
+            const layout = {
+                margin: { t: 10, r: 10, b: 40, l: 60 },
+                xaxis: {
+                    title: 'Time',
+                    showgrid: false,
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                },
+                yaxis: {
+                    title: 'Value',
+                    showgrid: true,
+                    gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                },
+                showlegend: true,
+                legend: {
+                    orientation: 'h',
+                    y: 1.1,
+                    font: {
+                        color: isDarkMode ? '#e9ecef' : '#212529'
+                    }
+                },
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)'
             };
             
-            Plotly.addTraces('riskMetricsChart', newTrace);
-        }
-        
-        // Update layout for dark mode
-        const layout = {
-            xaxis: {
-                color: isDarkMode ? '#e9ecef' : '#212529',
-                linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-            },
-            yaxis: {
-                gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                color: isDarkMode ? '#e9ecef' : '#212529',
-                linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
-            },
-            legend: {
-                font: {
-                    color: isDarkMode ? '#e9ecef' : '#212529'
-                }
+            const config = {
+                responsive: true,
+                displayModeBar: false
+            };
+            
+            charts.riskMetrics = Plotly.newPlot('riskMetricsChart', chartData, layout, config);
+            console.log("Risk Metrics chart initialized successfully");
+        } else {
+            // Add or update the dataset
+            const timestamps = data.data.map(item => new Date(item.timestamp * 1000));
+            const values = data.data.map(item => item.value);
+            
+            // Check if this trace already exists
+            const chartDiv = document.getElementById('riskMetricsChart');
+            const existingTraceIndex = chartDiv.data.findIndex(trace => trace.name === label);
+            
+            if (existingTraceIndex >= 0) {
+                // Update existing trace
+                Plotly.restyle('riskMetricsChart', {
+                    x: [timestamps],
+                    y: [values]
+                }, [existingTraceIndex]);
+            } else {
+                // Add new trace
+                const newTrace = {
+                    x: timestamps,
+                    y: values,
+                    type: 'scatter',
+                    mode: 'lines',
+                    name: label,
+                    line: {
+                        width: 2
+                    }
+                };
+                
+                Plotly.addTraces('riskMetricsChart', newTrace);
             }
-        };
-        
-        Plotly.relayout('riskMetricsChart', layout);
+            
+            // Update layout for dark mode
+            const layout = {
+                xaxis: {
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                },
+                yaxis: {
+                    gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                },
+                legend: {
+                    font: {
+                        color: isDarkMode ? '#e9ecef' : '#212529'
+                    }
+                }
+            };
+            
+            Plotly.relayout('riskMetricsChart', layout);
+            console.log(`Risk Metrics chart updated for ${label}`);
+        }
+    } catch (error) {
+        console.error(`Error updating Risk Metrics chart for ${label}:`, error);
+        showError(`Failed to update Risk Metrics chart for ${label}: ${error.message}`);
     }
 }
 
@@ -894,7 +1010,264 @@ async function updatePositionMetricsChart() {
 
 // Show error message
 function showError(message) {
-    // You could implement a toast notification here
     console.error(message);
-    alert(message);
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.setAttribute('role', 'alert');
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.querySelector('.container-fluid').prepend(alertDiv);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Load settings from the server
+async function loadSettings() {
+    console.log('Loading settings...');
+    try {
+        const response = await fetch('/api/settings');
+        console.log('Settings response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const settings = await response.json();
+        console.log('Received settings:', settings);
+        currentSettings = settings;
+        
+        // Populate form fields
+        document.getElementById('walletAddress').value = settings.wallet_address || '';
+        document.getElementById('maxPositionSizeUsd').value = settings.risk_limits.max_position_size_usd || 100000;
+        document.getElementById('maxLeverage').value = settings.risk_limits.max_leverage || 50;
+        document.getElementById('maxDrawdownPct').value = settings.risk_limits.max_drawdown_pct || 15;
+        document.getElementById('maxPositionPct').value = settings.risk_limits.max_position_pct || 20;
+        document.getElementById('minDistanceToLiq').value = settings.risk_limits.min_distance_to_liq || 10;
+        document.getElementById('maxCorrelation').value = settings.risk_limits.max_correlation || 0.7;
+        document.getElementById('maxMarginUtilization').value = settings.risk_limits.max_margin_utilization || 80;
+        
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        showError('Failed to load settings. Please try again.');
+    }
+}
+
+// Save settings to the server
+async function saveSettings() {
+    console.log('Saving settings...');
+    try {
+        const settings = {
+            wallet_address: document.getElementById('walletAddress').value,
+            risk_limits: {
+                max_position_size_usd: parseFloat(document.getElementById('maxPositionSizeUsd').value),
+                max_leverage: parseFloat(document.getElementById('maxLeverage').value),
+                max_drawdown_pct: parseFloat(document.getElementById('maxDrawdownPct').value),
+                max_position_pct: parseFloat(document.getElementById('maxPositionPct').value),
+                min_distance_to_liq: parseFloat(document.getElementById('minDistanceToLiq').value),
+                max_correlation: parseFloat(document.getElementById('maxCorrelation').value),
+                max_margin_utilization: parseFloat(document.getElementById('maxMarginUtilization').value)
+            }
+        };
+        
+        console.log('Sending settings:', settings);
+        
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        console.log('Settings response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Close modal and refresh data
+        $('#settingsModal').modal('hide');
+        showSuccess('Settings saved successfully!');
+        refreshAllData();
+        
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        showError('Failed to save settings. Please try again.');
+    }
+}
+
+// Show success message
+function showSuccess(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+    alertDiv.setAttribute('role', 'alert');
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.querySelector('.container-fluid').prepend(alertDiv);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Debug function to check API responses
+async function debugAPI() {
+    console.log('Debugging API responses...');
+    
+    try {
+        // Check risk summary
+        const summaryResponse = await fetch('/api/risk_summary');
+        const summaryData = await summaryResponse.json();
+        console.log('Risk Summary Response:', summaryData);
+        
+        // Check risk analysis
+        const analysisResponse = await fetch('/api/risk_analysis');
+        const analysisData = await analysisResponse.json();
+        console.log('Risk Analysis Response:', analysisData);
+        
+        // Check positions
+        const positionsResponse = await fetch('/api/positions');
+        const positionsData = await positionsResponse.json();
+        console.log('Positions Response:', positionsData);
+        
+        // Check settings
+        const settingsResponse = await fetch('/api/settings');
+        const settingsData = await settingsResponse.json();
+        console.log('Settings Response:', settingsData);
+        
+        // Check debug endpoint
+        const debugResponse = await fetch('/api/debug/risk_summary');
+        const debugData = await debugResponse.json();
+        console.log('Debug Response:', debugData);
+        
+    } catch (error) {
+        console.error('Debug API error:', error);
+    }
+}
+
+// After the document ready function, add this new function
+function addDebugButton() {
+    // Create debug button
+    const debugBtn = document.createElement('button');
+    debugBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
+    debugBtn.innerHTML = '<i class="fas fa-bug me-1"></i> Debug';
+    debugBtn.id = 'debugBtn';
+    
+    // Add it next to the refresh button
+    const refreshBtn = document.getElementById('refreshDataBtn');
+    if (refreshBtn && refreshBtn.parentNode) {
+        refreshBtn.parentNode.insertBefore(debugBtn, refreshBtn.nextSibling);
+    }
+    
+    // Add event listener
+    debugBtn.addEventListener('click', async function() {
+        try {
+            debugBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Debugging...';
+            
+            // Create debug modal
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'debugModal';
+            modal.setAttribute('tabindex', '-1');
+            modal.setAttribute('aria-labelledby', 'debugModalLabel');
+            modal.setAttribute('aria-hidden', 'true');
+            
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="debugModalLabel">Debug Information</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-flex justify-content-between mb-3">
+                                <h6>API Endpoints</h6>
+                                <div>
+                                    <button id="refreshDebugBtn" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-sync-alt me-1"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="list-group mb-4" id="debugEndpoints">
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/risk_summary">Risk Summary</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/debug_risk_summary">Debug Risk Summary</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/risk_analysis">Risk Analysis</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/positions">Positions</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/total_unrealized_pnl">PnL Metrics</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/portfolio_heat">Portfolio Heat Metrics</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/margin_utilization">Margin Utilization Metrics</a>
+                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/account_value">Account Value Metrics</a>
+                            </div>
+                            
+                            <h6>Response</h6>
+                            <pre id="debugResponse" class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">Select an endpoint to see the response</pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Initialize the modal
+            const debugModal = new bootstrap.Modal(document.getElementById('debugModal'));
+            debugModal.show();
+            
+            // Add event listeners to endpoint links
+            document.querySelectorAll('#debugEndpoints a').forEach(link => {
+                link.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    
+                    const endpoint = this.getAttribute('data-endpoint');
+                    const responseElement = document.getElementById('debugResponse');
+                    
+                    // Clear previous selection
+                    document.querySelectorAll('#debugEndpoints a').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    
+                    // Mark this as active
+                    this.classList.add('active');
+                    
+                    try {
+                        responseElement.textContent = 'Loading...';
+                        
+                        const response = await fetch(endpoint);
+                        const data = await response.json();
+                        
+                        responseElement.textContent = JSON.stringify(data, null, 2);
+                    } catch (error) {
+                        responseElement.textContent = `Error: ${error.message}`;
+                    }
+                });
+            });
+            
+            // Add refresh button functionality
+            document.getElementById('refreshDebugBtn').addEventListener('click', function() {
+                const activeEndpoint = document.querySelector('#debugEndpoints a.active');
+                if (activeEndpoint) {
+                    activeEndpoint.click();
+                }
+            });
+            
+        } catch (error) {
+            console.error('Debug error:', error);
+            showError('Debug error: ' + error.message);
+        } finally {
+            debugBtn.innerHTML = '<i class="fas fa-bug me-1"></i> Debug';
+        }
+    });
 } 
