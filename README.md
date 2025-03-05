@@ -32,6 +32,14 @@ This repository includes a comprehensive risk management system for cryptocurren
    - Generates warnings when thresholds are exceeded
    - Provides actionable suggestions for risk reduction
 
+5. **Interactive Dashboard**
+   - Web-based visualization of risk metrics
+   - Real-time charts for PnL, account value, and risk metrics
+   - Position-specific analysis and metrics
+   - Risk warnings and alerts display
+   - Settings management interface
+   - Debug tools for troubleshooting
+
 ### Usage
 
 1. **Environment Setup**
@@ -64,6 +72,12 @@ This repository includes a comprehensive risk management system for cryptocurren
    cargo run --bin risk_monitor
    ```
 
+3. **Running the Dashboard**
+   ```bash
+   cargo run --bin risk_dashboard
+   ```
+   Then open your browser to `http://localhost:8080`
+
 ## SDK Usage
 
 ```rust
@@ -93,6 +107,17 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+## Dashboard Features
+
+The risk dashboard provides a comprehensive view of your trading positions and risk metrics:
+
+- **Real-time Monitoring**: View your portfolio heat, margin utilization, and account value
+- **Interactive Charts**: Track PnL over time, risk metrics, and position-specific data
+- **Position Analysis**: Detailed table of all positions with key metrics
+- **Risk Warnings**: Visual alerts when risk thresholds are exceeded
+- **Settings Management**: Configure risk limits through the UI
+- **Debug Tools**: Troubleshoot API issues with the built-in debug interface
 
 ## Building the SDK
 

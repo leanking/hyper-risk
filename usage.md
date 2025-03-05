@@ -20,7 +20,9 @@ cd hyper-risk
 cargo build --release
 ```
 
-The binary will be available at `target/release/risk_monitor`.
+The binaries will be available at:
+- `target/release/risk_monitor` - Command-line risk monitoring tool
+- `target/release/risk_dashboard` - Web-based dashboard interface
 
 ## Supabase Setup for Database Logging
 
@@ -73,6 +75,7 @@ The system is configured primarily through environment variables, which can be s
 | `LOG_TO_CONSOLE` | Whether to log to console | `true` |
 | `LOG_TO_DATABASE` | Whether to log to database | `false` |
 | `LOG_INTERVAL_SECONDS` | How often to log data (in seconds) | `60` |
+| `DASHBOARD_PORT` | Port for the web dashboard | `8080` |
 
 ### Database Configuration (Required if LOG_TO_DATABASE=true)
 
@@ -106,6 +109,7 @@ export API_URL=https://api.hyperliquid.xyz
 export LOG_TO_CONSOLE=true
 export LOG_TO_DATABASE=true
 export LOG_INTERVAL_SECONDS=60
+export DASHBOARD_PORT=8080
 
 # Supabase configuration (required if LOG_TO_DATABASE=true)
 export SUPABASE_URL=https://your-project-id.supabase.co
@@ -123,6 +127,8 @@ export MAX_MARGIN_UTILIZATION=80
 
 ## Running the Program
 
+### Risk Monitor (Command Line)
+
 To start the risk management system:
 
 ```bash
@@ -133,6 +139,26 @@ Or if you've built the release version:
 
 ```bash
 ./target/release/risk_monitor
+```
+
+### Risk Dashboard (Web Interface)
+
+To start the web-based dashboard:
+
+```bash
+cargo run --bin risk_dashboard
+```
+
+Or if you've built the release version:
+
+```bash
+./target/release/risk_dashboard
+```
+
+Then open your browser and navigate to:
+
+```
+http://localhost:8080
 ```
 
 ## Understanding the Output
@@ -182,6 +208,54 @@ When enabled, detailed logs are stored in JSON format with timestamps, position 
 ### Database Logs
 
 When `LOG_TO_DATABASE=true`, logs are sent to your Supabase database in the `risk_logs` table, allowing for historical analysis and visualization.
+
+## Dashboard Features
+
+The web-based dashboard provides a comprehensive visual interface for monitoring your risk metrics:
+
+### Risk Summary Cards
+
+- **Portfolio Heat**: Overall risk score for your portfolio (0-100)
+- **Margin Utilization**: Percentage of available margin in use
+- **Highest Risk Position**: Position with the highest risk score
+- **Risk Warnings**: Count of active risk warnings
+
+### Charts
+
+- **PnL Over Time**: Track your unrealized profit and loss
+- **Account Value**: Monitor your total account value
+- **Risk Metrics**: View portfolio heat and margin utilization trends
+- **Position Metrics**: Position-specific metrics including PnL, risk score, and distance to liquidation
+
+### Positions Table
+
+Detailed view of all your current positions with key metrics:
+
+- Coin
+- Size
+- Entry Price
+- Leverage
+- Liquidation Price
+- Unrealized PnL
+- Margin Used
+- Position Value
+- ROE
+- Risk Score
+
+### Risk Warnings
+
+Active warnings with severity levels and suggested actions.
+
+### Settings Management
+
+Configure risk limits directly through the dashboard interface.
+
+### Debug Tools
+
+The dashboard includes a debug interface to help troubleshoot API issues:
+- View raw API responses
+- Test individual endpoints
+- Monitor data flow
 
 ## Risk Metrics
 
@@ -236,6 +310,26 @@ If the program fails to start or connect:
 4. Check your internet connection
 5. Ensure you have sufficient permissions to write log files
 
+### Dashboard Issues
+
+If you encounter issues with the dashboard:
+
+1. **Charts Not Displaying Data**:
+   - Use the debug button to check API responses
+   - Verify that the API endpoints are returning valid data
+   - Check the browser console for JavaScript errors
+   - Ensure your browser is up to date
+
+2. **Settings Not Saving**:
+   - Check that the settings API endpoint is accessible
+   - Verify that user_settings.json is writable
+   - Check for error messages in the browser console
+
+3. **Port Already in Use**:
+   - If you see "Address already in use" error, another process is using port 8080
+   - Change the port using the DASHBOARD_PORT environment variable
+   - Or stop the other process using the port
+
 ### Database Logging Issues
 
 If you see errors like `Failed to log to database. Status: 404 Not Found`:
@@ -283,3 +377,14 @@ The console output and log files can be integrated with monitoring systems like 
 ### Alert Configuration
 
 Risk warnings can be configured to trigger external alerts by modifying the thresholds in the environment variables. 
+
+### Using the Debug Interface
+
+The dashboard includes a debug button that opens a modal with access to all API endpoints:
+
+1. Click the "Debug" button in the dashboard header
+2. Select an API endpoint from the list
+3. View the raw JSON response
+4. Use this to diagnose issues with data loading or chart display
+
+This is particularly useful for troubleshooting issues with charts not displaying correctly or settings not saving properly. 
