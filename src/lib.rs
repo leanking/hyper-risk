@@ -6,11 +6,13 @@ mod helpers;
 mod info;
 mod market_maker;
 mod meta;
-mod prelude;
+pub mod prelude;
 mod proxy_digest;
 mod req;
 mod signature;
 mod ws;
+pub mod risk_management;
+
 pub use consts::{EPSILON, LOCAL_API_URL, MAINNET_API_URL, TESTNET_API_URL};
 pub use errors::Error;
 pub use exchange::*;

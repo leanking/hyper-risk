@@ -1,3 +1,9 @@
 /target
 .idea/
 Cargo.lock
+
+cursor-rules/
+
+.env
+PROJECT_GOALS.md
+rust.mdc
