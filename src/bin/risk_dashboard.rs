@@ -3,10 +3,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use actix_cors::Cors;
 use actix_files as fs;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{web, App, HttpResponse, HttpServer, Responder, Result, middleware};
 use log::{info, error};
 use serde_json::json;
 use tokio::time;
+use actix_web::http;
+use actix_web::http::header;
+use actix_governor::{Governor, GovernorConfigBuilder};
 
 use hyperliquid_rust_sdk::risk_management::{
     RiskManagementSystem, RiskConfig, DataLogger
@@ -49,9 +52,40 @@ async fn get_metric_history(
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> Result<impl Responder> {
     let metric_name = path.into_inner();
-    let limit = query.get("limit")
-        .and_then(|l| l.parse::<usize>().ok())
-        .unwrap_or(100);
+    
+    // Validate metric name - only allow specific known metrics
+    let valid_metrics = [
+        "portfolio_heat", "concentration_score", "risk_adjusted_return", 
+        "margin_utilization", "total_unrealized_pnl", "account_value", 
+        "total_position_value", "average_leverage"
+    ];
+    
+    if !valid_metrics.contains(&metric_name.as_str()) {
+        return Ok(HttpResponse::BadRequest().json(json!({
+            "error": format!("Invalid metric name: {}. Valid metrics are: {}", 
+                            metric_name, valid_metrics.join(", "))
+        })));
+    }
+    
+    // Validate and parse limit parameter
+    let limit = match query.get("limit") {
+        Some(limit_str) => {
+            match limit_str.parse::<usize>() {
+                Ok(limit) if limit > 0 && limit <= 1000 => limit,
+                Ok(_) => {
+                    return Ok(HttpResponse::BadRequest().json(json!({
+                        "error": "Limit must be between 1 and 1000"
+                    })));
+                },
+                Err(_) => {
+                    return Ok(HttpResponse::BadRequest().json(json!({
+                        "error": "Invalid limit parameter, must be a positive number"
+                    })));
+                }
+            }
+        },
+        None => 100 // Default limit
+    };
     
     match data.data_logger.get_time_series_data(&metric_name, limit) {
         Ok(time_series) => {
@@ -372,28 +406,114 @@ async fn main() -> std::io::Result<()> {
     
     println!("Starting dashboard server on http://localhost:{}", port);
     
+    // Configure rate limiting
+    // Default: 300 requests per minute per client IP for general endpoints (increased from 60)
+    let general_requests_per_minute = env::var("RATE_LIMIT_REQUESTS_PER_MINUTE")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(300)
+        .max(1); // Ensure at least 1 request per minute
+    
+    // Higher limit for static files (600 requests per minute, increased from 120)
+    let static_requests_per_minute = env::var("RATE_LIMIT_STATIC_PER_MINUTE")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(600)
+        .max(1); // Ensure at least 1 request per minute
+    
+    // Lower limit for settings endpoints (100 requests per minute, increased from 20)
+    let settings_requests_per_minute = env::var("RATE_LIMIT_SETTINGS_PER_MINUTE")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(100)
+        .max(1); // Ensure at least 1 request per minute
+        
+    // Create rate limiter configurations
+    // Ensure we have at least 1 request per second and 1 burst
+    let general_governor_conf = GovernorConfigBuilder::default()
+        .per_second(general_requests_per_minute / 60 + 1) // Add 1 to ensure it's never zero
+        .burst_size(((general_requests_per_minute / 10) as u32).max(1)) // Ensure at least 1 burst
+        .finish()
+        .expect("Failed to create general rate limiter configuration");
+    
+    let static_governor_conf = GovernorConfigBuilder::default()
+        .per_second(static_requests_per_minute / 60 + 1) // Add 1 to ensure it's never zero
+        .burst_size(((static_requests_per_minute / 10) as u32).max(1)) // Ensure at least 1 burst
+        .finish()
+        .expect("Failed to create static rate limiter configuration");
+    
+    let settings_governor_conf = GovernorConfigBuilder::default()
+        .per_second(settings_requests_per_minute / 60 + 1) // Add 1 to ensure it's never zero
+        .burst_size(((settings_requests_per_minute / 10) as u32).max(1)) // Ensure at least 1 burst
+        .finish()
+        .expect("Failed to create settings rate limiter configuration");
+    
     HttpServer::new(move || {
-        // Configure CORS
+        // Configure CORS with more restrictive settings
         let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header()
+            // Replace allow_any_origin() with specific allowed origins
+            // This will allow the Render domain and localhost for development
+            .allowed_origin("https://hyperliquid-risk-dashboard.onrender.com")  // Replace with your actual Render domain
+            .allowed_origin("http://localhost:8080")  // For local development
+            .allowed_methods(vec!["GET", "POST"])  // Only allow necessary methods
+            .allowed_headers(vec![
+                http::header::AUTHORIZATION,
+                http::header::ACCEPT,
+                http::header::CONTENT_TYPE,
+            ])
             .max_age(3600);
         
-        App::new()
+        // Base app with security headers
+        let base_app = App::new()
             .wrap(cors)
-            .app_data(web::Data::new(app_state.clone()))
-            // API routes
-            .route("/api/risk_analysis", web::get().to(get_risk_analysis))
-            .route("/api/risk_summary", web::get().to(get_risk_summary))
-            .route("/api/positions", web::get().to(get_positions))
-            .route("/api/metrics/{metric}", web::get().to(get_metric_history))
-            .route("/api/positions/{coin}/{metric}", web::get().to(get_position_history))
-            .route("/api/settings", web::get().to(get_settings))
-            .route("/api/settings", web::post().to(update_settings))
-            .route("/api/debug/risk_summary", web::get().to(debug_risk_summary))
-            // Static files
-            .service(fs::Files::new("/", "dashboard/static").index_file("index.html"))
+            // Add security headers middleware
+            .wrap(middleware::DefaultHeaders::new()
+                // Prevent the browser from MIME-sniffing
+                .add((header::X_CONTENT_TYPE_OPTIONS, "nosniff"))
+                // Prevent clickjacking
+                .add((header::X_FRAME_OPTIONS, "DENY"))
+                // XSS protection
+                .add((header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.plot.ly; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'"))
+                // Referrer policy
+                .add((header::REFERRER_POLICY, "strict-origin-when-cross-origin"))
+                // Permissions policy
+                .add((header::HeaderName::from_static("permissions-policy"), "camera=(), microphone=(), geolocation=()"))
+            )
+            .app_data(web::Data::new(app_state.clone()));
+        
+        // Build the app with different rate limits for different endpoints
+        let mut app = base_app
+            // API routes with general rate limit
+            .service(
+                web::scope("/api")
+                    .wrap(Governor::new(&general_governor_conf))
+                    .route("/risk_analysis", web::get().to(get_risk_analysis))
+                    .route("/risk_summary", web::get().to(get_risk_summary))
+                    .route("/positions", web::get().to(get_positions))
+                    .route("/metrics/{metric}", web::get().to(get_metric_history))
+                    .route("/positions/{coin}/{metric}", web::get().to(get_position_history))
+                    // Settings endpoints with stricter rate limit
+                    .service(
+                        web::scope("/settings")
+                            .wrap(Governor::new(&settings_governor_conf))
+                            .route("", web::get().to(get_settings))
+                            .route("", web::post().to(update_settings))
+                    )
+            );
+        
+        // Only add debug endpoints in development mode
+        // Check if we're in development mode (not on Render)
+        let is_development = env::var("RENDER").is_err();
+        if is_development {
+            app = app.route("/api/debug/risk_summary", web::get().to(debug_risk_summary));
+        }
+        
+        // Static files with higher rate limit
+        app.service(
+            web::scope("")
+                .wrap(Governor::new(&static_governor_conf))
+                .service(fs::Files::new("/", "dashboard/static").index_file("index.html"))
+        )
     })
     .bind(("0.0.0.0", port))?
     .run()

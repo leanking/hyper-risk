@@ -174,7 +174,14 @@ impl DataLogger {
             None => return Err(Error::Custom("Supabase URL not configured".to_string()))
         };
         
-        let api_key = match &self.config.database_key {
+        // Don't store the API key in a variable that won't be used
+        // Just check if it exists
+        if self.config.database_key.is_none() {
+            return Err(Error::Custom("Supabase API key not configured".to_string()));
+        }
+        
+        // Get the actual API key for use (not logging)
+        let actual_api_key = match &self.config.database_key {
             Some(key) => key.clone(),
             None => return Err(Error::Custom("Supabase API key not configured".to_string()))
         };
@@ -193,11 +200,14 @@ impl DataLogger {
         // First try 'risk_logs' (our preferred table name)
         let endpoint = format!("{}/rest/v1/risk_logs", base_url);
         
-        // Log the endpoint for troubleshooting
+        // Log the endpoint for troubleshooting (without sensitive data)
         log::info!("Using Supabase endpoint: {}", endpoint);
         
-        // Serialize the log entry to JSON
-        let body = match serde_json::to_string(&log_entry) {
+        // Sanitize the log entry to remove any potentially sensitive data
+        let sanitized_log_entry = self.sanitize_log_entry(log_entry);
+        
+        // Serialize the sanitized log entry to JSON
+        let body = match serde_json::to_string(&sanitized_log_entry) {
             Ok(json) => json,
             Err(e) => return Err(Error::Custom(format!("Failed to serialize log entry: {}", e)))
         };
@@ -208,9 +218,9 @@ impl DataLogger {
         // Set up headers for Supabase
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", api_key))
+        headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", actual_api_key))
             .map_err(|e| Error::Custom(format!("Invalid API key format: {}", e)))?);
-        headers.insert("apikey", HeaderValue::from_str(&api_key)
+        headers.insert("apikey", HeaderValue::from_str(&actual_api_key)
             .map_err(|e| Error::Custom(format!("Invalid API key format: {}", e)))?);
         // Add the Prefer header for upsert behavior
         headers.insert("Prefer", HeaderValue::from_static("return=minimal"));
@@ -299,6 +309,34 @@ impl DataLogger {
         log::info!("Sent log entry to Supabase database at timestamp: {}", log_entry.timestamp);
         
         Ok(())
+    }
+    
+    /// Sanitizes a log entry to remove potentially sensitive information
+    fn sanitize_log_entry(&self, log_entry: &LogEntry) -> LogEntry {
+        // Create a clone of the log entry that we can modify
+        let mut sanitized = log_entry.clone();
+        
+        // Remove or mask any sensitive fields
+        // For example, you might want to redact specific position details
+        // or mask sensitive information in certain contexts
+        
+        // This is a simple example - expand based on what you consider sensitive
+        for position in &mut sanitized.positions {
+            // Sanitize any potentially sensitive information
+            // For example, we could redact very large position sizes
+            if position.position_value > 1_000_000.0 {
+                position.size = 0.0;  // Redact the actual size for very large positions
+                position.position_value = 0.0;  // Redact the position value
+                position.margin_used = 0.0;  // Redact the margin used
+            }
+            
+            // We could also redact specific coins if needed
+            // if position.coin == "BTC" || position.coin == "ETH" {
+            //     position.size = 0.0;
+            // }
+        }
+        
+        sanitized
     }
     
     /// Retrieves historical log entries from the log file

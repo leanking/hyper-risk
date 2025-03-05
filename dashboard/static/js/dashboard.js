@@ -15,6 +15,8 @@ const settingsForm = document.getElementById('settingsForm');
 
 // Initialize the dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Document loaded, initializing dashboard...');
+    
     // Initialize tooltips
     initTooltips();
     
@@ -27,15 +29,8 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshAllData();
     });
     
-    // Debug button
-    const debugBtn = document.createElement('button');
-    debugBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-    debugBtn.innerHTML = '<i class="fas fa-bug"></i> Debug';
-    debugBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        debugAPI();
-    });
-    document.querySelector('.navbar-nav').prepend(debugBtn);
+    // Add debug button
+    addDebugButton();
     
     positionSelect.addEventListener('change', function() {
         selectedPosition = this.value;
@@ -143,25 +138,52 @@ function redrawAllCharts() {
 
 // Refresh all dashboard data
 async function refreshAllData() {
+    console.log('Refreshing all dashboard data...');
+    
     // Show loading indicator
     refreshDataBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin me-1"></i> Refreshing...';
     
     try {
         // Load data in parallel
         await Promise.all([
-            loadRiskSummary(),
-            loadRiskAnalysis(),
-            loadPositions(),
-            loadMetricHistory('total_unrealized_pnl', updatePnlChart),
-            loadMetricHistory('portfolio_heat', updateRiskMetricsChart, 'Portfolio Heat'),
-            loadMetricHistory('margin_utilization', updateRiskMetricsChart, 'Margin Utilization'),
-            loadMetricHistory('account_value', updateAccountValue)
+            loadRiskSummary().catch(err => {
+                console.error('Error loading risk summary:', err);
+                return null;
+            }),
+            loadRiskAnalysis().catch(err => {
+                console.error('Error loading risk analysis:', err);
+                return null;
+            }),
+            loadPositions().catch(err => {
+                console.error('Error loading positions:', err);
+                return null;
+            }),
+            loadMetricHistory('total_unrealized_pnl', updatePnlChart).catch(err => {
+                console.error('Error loading PnL history:', err);
+                return null;
+            }),
+            loadMetricHistory('portfolio_heat', updateRiskMetricsChart, 'Portfolio Heat').catch(err => {
+                console.error('Error loading portfolio heat history:', err);
+                return null;
+            }),
+            loadMetricHistory('margin_utilization', updateRiskMetricsChart, 'Margin Utilization').catch(err => {
+                console.error('Error loading margin utilization history:', err);
+                return null;
+            }),
+            loadMetricHistory('account_value', updateAccountValue).catch(err => {
+                console.error('Error loading account value history:', err);
+                return null;
+            })
         ]);
         
         // Update position-specific chart if a position is selected
         if (selectedPosition) {
-            updatePositionMetricsChart();
+            updatePositionMetricsChart().catch(err => {
+                console.error('Error updating position metrics chart:', err);
+            });
         }
+        
+        console.log('All dashboard data refreshed successfully');
     } catch (error) {
         console.error('Error refreshing data:', error);
         showError('Failed to refresh data. Please try again.');
@@ -174,8 +196,11 @@ async function refreshAllData() {
 // Load risk summary data
 async function loadRiskSummary() {
     try {
+        console.log('Loading risk summary data...');
         const response = await fetch('/api/risk_summary');
+        console.log('Risk summary response status:', response.status);
         const data = await response.json();
+        console.log('Risk summary data:', data);
         
         // Update summary cards
         updateSummaryCards(data);
@@ -188,8 +213,11 @@ async function loadRiskSummary() {
 // Load risk analysis data
 async function loadRiskAnalysis() {
     try {
+        console.log('Loading risk analysis data...');
         const response = await fetch('/api/risk_analysis');
         const data = await response.json();
+        
+        console.log('Risk analysis data:', data);
         
         // Update positions table and warnings
         updatePositionsTable(data.positions, data.position_metrics);
@@ -207,7 +235,7 @@ async function loadPositions() {
         const data = await response.json();
         
         // Update position select dropdown
-        updatePositionSelect(data.positions);
+        updatePositionSelect(data);
     } catch (error) {
         console.error('Error loading positions:', error);
         throw error;
@@ -221,7 +249,10 @@ async function loadMetricHistory(metricName, updateChartFunction, label = null) 
         const response = await fetch(`/api/metrics/${metricName}`);
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.error(`HTTP error loading ${metricName}: ${response.status}`);
+            // Create empty chart to avoid errors
+            updateChartFunction({data: []}, label);
+            return;
         }
         
         const data = await response.json();
@@ -230,7 +261,9 @@ async function loadMetricHistory(metricName, updateChartFunction, label = null) 
         // Check if data is valid
         if (!data || !data.data || !Array.isArray(data.data)) {
             console.error(`Invalid data format for ${metricName}:`, data);
-            throw new Error(`Invalid data format for ${metricName}`);
+            // Create empty chart to avoid errors
+            updateChartFunction({data: []}, label);
+            return;
         }
         
         // Check if we have any data points
@@ -245,7 +278,6 @@ async function loadMetricHistory(metricName, updateChartFunction, label = null) 
         updateChartFunction(data, label);
     } catch (error) {
         console.error(`Error loading ${metricName} history:`, error);
-        showError(`Failed to load ${metricName} data: ${error.message}`);
         // Create empty chart to avoid errors
         updateChartFunction({data: []}, label);
     }
@@ -254,22 +286,41 @@ async function loadMetricHistory(metricName, updateChartFunction, label = null) 
 // Load position-specific metric history
 async function loadPositionMetricHistory(coin, metricName) {
     try {
+        console.log(`Loading position metric history for ${coin}/${metricName}...`);
         const response = await fetch(`/api/positions/${coin}/${metricName}`);
-        return await response.json();
+        
+        if (!response.ok) {
+            console.error(`HTTP error loading ${coin}/${metricName}: ${response.status}`);
+            // Return empty data structure instead of throwing
+            return { coin, metric: metricName, data: [] };
+        }
+        
+        const data = await response.json();
+        console.log(`Received data for ${coin}/${metricName}:`, data);
+        return data;
     } catch (error) {
         console.error(`Error loading ${coin} ${metricName} history:`, error);
-        throw error;
+        // Return empty data structure instead of throwing
+        return { coin, metric: metricName, data: [] };
     }
 }
 
 // Update summary cards
 function updateSummaryCards(data) {
+    console.log('Updating summary cards with data:', data);
+    
     // Only update what's provided in the data object
     
     // Portfolio Heat
     if (data.portfolio_heat !== undefined) {
+        console.log('Updating portfolio heat:', data.portfolio_heat);
         const portfolioHeat = document.getElementById('portfolioHeat');
         const portfolioHeatBar = document.getElementById('portfolioHeatBar');
+        
+        if (!portfolioHeat || !portfolioHeatBar) {
+            console.error('Could not find portfolio heat elements');
+            return;
+        }
         
         portfolioHeat.textContent = data.portfolio_heat.toFixed(1);
         portfolioHeatBar.style.width = `${data.portfolio_heat}%`;
@@ -292,8 +343,14 @@ function updateSummaryCards(data) {
     
     // Margin Utilization
     if (data.margin_utilization !== undefined) {
+        console.log('Updating margin utilization:', data.margin_utilization);
         const marginUtilization = document.getElementById('marginUtilization');
         const marginUtilizationBar = document.getElementById('marginUtilizationBar');
+        
+        if (!marginUtilization || !marginUtilizationBar) {
+            console.error('Could not find margin utilization elements');
+            return;
+        }
         
         marginUtilization.textContent = data.margin_utilization.toFixed(1) + '%';
         marginUtilizationBar.style.width = `${data.margin_utilization}%`;
@@ -356,10 +413,13 @@ function formatNumber(value) {
 
 // Update positions table
 function updatePositionsTable(positions, positionMetrics) {
+    console.log('Updating positions table with:', { positions, positionMetrics });
+    
     const tableBody = document.querySelector('#positionsTable tbody');
     
     if (!positions || positions.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="10" class="text-center">No positions found</td></tr>';
+        console.log('No positions found');
+        tableBody.innerHTML = '<tr><td colspan="9" class="text-center">No positions found</td></tr>';
         return;
     }
     
@@ -373,6 +433,8 @@ function updatePositionsTable(positions, positionMetrics) {
             metricsMap[metric.position.coin] = metric;
         });
     }
+    
+    console.log('Position metrics map:', metricsMap);
     
     // Sort positions by risk score (highest first)
     positions.sort((a, b) => {
@@ -388,42 +450,48 @@ function updatePositionsTable(positions, positionMetrics) {
         
         // Determine row class based on risk score
         if (metrics.risk_score >= 75) {
-            row.classList.add('table-danger');
+            row.className = 'table-danger';
         } else if (metrics.risk_score >= 50) {
-            row.classList.add('table-warning');
+            row.className = 'table-warning';
         } else if (metrics.risk_score >= 25) {
-            row.classList.add('table-info');
-        } else {
-            row.classList.add('table-success');
+            row.className = 'table-info';
         }
         
-        // Format PnL with color
-        const pnlValue = position.unrealized_pnl || 0;
-        const pnlFormatted = `$${Math.abs(pnlValue).toFixed(2)}`;
-        const pnlClass = pnlValue >= 0 ? 'text-success' : 'text-danger';
-        const pnlPrefix = pnlValue >= 0 ? '+' : '-';
+        // Format the position data
+        const size = parseFloat(position.size).toFixed(position.size < 0.1 && position.size > -0.1 ? 5 : 2);
+        const leverage = parseFloat(position.leverage).toFixed(1) + 'x';
+        const marginType = position.is_cross ? 'cross' : 'isolated';
+        const riskScore = metrics.risk_score ? metrics.risk_score.toFixed(1) : '--';
+        const liqDistance = metrics.distance_to_liquidation ? metrics.distance_to_liquidation.toFixed(2) + '%' : '--';
+        const marginUsed = position.margin_used ? '$' + parseFloat(position.margin_used).toFixed(2) : '--';
+        const pnl = position.unrealized_pnl ? '$' + parseFloat(position.unrealized_pnl).toFixed(2) : '--';
         
-        // Format ROE with color
-        const roeValue = position.return_on_equity || 0;
-        const roeFormatted = `${Math.abs(roeValue).toFixed(2)}%`;
-        const roeClass = roeValue >= 0 ? 'text-success' : 'text-danger';
-        const roePrefix = roeValue >= 0 ? '+' : '-';
-        
-        // Create the row content
+        // Create the row HTML
         row.innerHTML = `
-            <td>${position.coin}</td>
-            <td>${position.size.toFixed(4)}</td>
-            <td>$${position.entry_price.toFixed(2)}</td>
-            <td>${position.leverage.toFixed(1)}x</td>
-            <td>$${position.liquidation_price.toFixed(2)}</td>
-            <td class="${pnlClass}">${pnlPrefix}${pnlFormatted}</td>
-            <td>$${position.margin_used.toFixed(2)}</td>
-            <td>$${position.position_value.toFixed(2)}</td>
-            <td class="${roeClass}">${roePrefix}${roeFormatted}</td>
-            <td>${metrics.risk_score ? metrics.risk_score.toFixed(1) : 'N/A'}</td>
+            <td><strong>${position.coin}</strong></td>
+            <td>${size}</td>
+            <td>${leverage}</td>
+            <td>${marginType}</td>
+            <td>${riskScore}</td>
+            <td>${liqDistance}</td>
+            <td>${marginUsed}</td>
+            <td>${pnl}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary position-action" data-action="chart" data-coin="${position.coin}">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-info position-action" data-action="details" data-coin="${position.coin}">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </td>
         `;
         
         tableBody.appendChild(row);
+    });
+    
+    // Add event listeners to the action buttons
+    document.querySelectorAll('.position-action').forEach(button => {
+        button.addEventListener('click', handlePositionAction);
     });
 }
 
@@ -483,9 +551,12 @@ function updateWarnings(warnings) {
 }
 
 // Update position select dropdown
-function updatePositionSelect(positions) {
+function updatePositionSelect(data) {
     // Clear existing options
     positionSelect.innerHTML = '';
+    
+    // Check if we have positions data
+    const positions = data.positions || [];
     
     if (positions.length === 0) {
         const option = document.createElement('option');
@@ -857,11 +928,29 @@ async function updatePositionMetricsChart() {
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     
     try {
+        console.log(`Updating position metrics chart for ${selectedPosition}...`);
+        
         // Load position metrics in parallel - removed distance to liquidation
         const [unrealizedPnlData, riskScoreData] = await Promise.all([
             loadPositionMetricHistory(selectedPosition, 'unrealized_pnl'),
             loadPositionMetricHistory(selectedPosition, 'risk_score')
         ]);
+        
+        console.log('Position metrics data loaded:', { unrealizedPnlData, riskScoreData });
+        
+        // Check if we have valid data
+        if (!unrealizedPnlData.data || !unrealizedPnlData.data.length || 
+            !riskScoreData.data || !riskScoreData.data.length) {
+            console.warn('No position metrics data available');
+            
+            // Clear the chart if no data
+            Plotly.purge('positionMetricsChart');
+            
+            // Show a message in the chart area
+            const chartDiv = document.getElementById('positionMetricsChart');
+            chartDiv.innerHTML = '<div class="text-center p-5"><p class="text-muted">No data available for this position</p></div>';
+            return;
+        }
         
         // Prepare data for the charts
         const timestamps = unrealizedPnlData.data.map(item => new Date(item.timestamp * 1000));
@@ -1136,153 +1225,156 @@ async function debugAPI() {
     
     try {
         // Check risk summary
+        console.log('Fetching /api/risk_summary...');
         const summaryResponse = await fetch('/api/risk_summary');
+        console.log('Risk Summary Status:', summaryResponse.status, summaryResponse.statusText);
+        console.log('Risk Summary Headers:', Object.fromEntries([...summaryResponse.headers]));
         const summaryData = await summaryResponse.json();
         console.log('Risk Summary Response:', summaryData);
         
         // Check risk analysis
+        console.log('Fetching /api/risk_analysis...');
         const analysisResponse = await fetch('/api/risk_analysis');
+        console.log('Risk Analysis Status:', analysisResponse.status, analysisResponse.statusText);
         const analysisData = await analysisResponse.json();
         console.log('Risk Analysis Response:', analysisData);
         
         // Check positions
+        console.log('Fetching /api/positions...');
         const positionsResponse = await fetch('/api/positions');
+        console.log('Positions Status:', positionsResponse.status, positionsResponse.statusText);
         const positionsData = await positionsResponse.json();
         console.log('Positions Response:', positionsData);
         
         // Check settings
+        console.log('Fetching /api/settings...');
         const settingsResponse = await fetch('/api/settings');
+        console.log('Settings Status:', settingsResponse.status, settingsResponse.statusText);
         const settingsData = await settingsResponse.json();
         console.log('Settings Response:', settingsData);
         
-        // Check debug endpoint
-        const debugResponse = await fetch('/api/debug/risk_summary');
-        const debugData = await debugResponse.json();
-        console.log('Debug Response:', debugData);
+        // Check if we're in development mode
+        try {
+            console.log('Fetching /api/debug/risk_summary...');
+            const debugResponse = await fetch('/api/debug/risk_summary');
+            console.log('Debug Status:', debugResponse.status, debugResponse.statusText);
+            const debugData = await debugResponse.json();
+            console.log('Debug Response:', debugData);
+        } catch (debugError) {
+            console.log('Debug endpoint not available (expected in production):', debugError);
+        }
+        
+        // Test the main data loading functions
+        console.log('Testing loadRiskSummary()...');
+        await loadRiskSummary();
+        console.log('Testing loadRiskAnalysis()...');
+        await loadRiskAnalysis();
+        console.log('Testing loadPositions()...');
+        await loadPositions();
+        
+        // Create an alert with the debug information
+        alert('Debug information has been logged to the console. Please open the browser console (F12) to view it.');
         
     } catch (error) {
         console.error('Debug API error:', error);
+        alert('Error during debugging: ' + error.message + '\nCheck the console for more details.');
     }
 }
 
-// After the document ready function, add this new function
+// Add debug button to the dashboard
 function addDebugButton() {
+    console.log('Adding debug button...');
+    
     // Create debug button
     const debugBtn = document.createElement('button');
     debugBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
-    debugBtn.innerHTML = '<i class="fas fa-bug me-1"></i> Debug';
-    debugBtn.id = 'debugBtn';
-    
-    // Add it next to the refresh button
-    const refreshBtn = document.getElementById('refreshDataBtn');
-    if (refreshBtn && refreshBtn.parentNode) {
-        refreshBtn.parentNode.insertBefore(debugBtn, refreshBtn.nextSibling);
-    }
-    
-    // Add event listener
-    debugBtn.addEventListener('click', async function() {
-        try {
-            debugBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Debugging...';
-            
-            // Create debug modal
-            const modal = document.createElement('div');
-            modal.className = 'modal fade';
-            modal.id = 'debugModal';
-            modal.setAttribute('tabindex', '-1');
-            modal.setAttribute('aria-labelledby', 'debugModalLabel');
-            modal.setAttribute('aria-hidden', 'true');
-            
-            modal.innerHTML = `
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="debugModalLabel">Debug Information</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="d-flex justify-content-between mb-3">
-                                <h6>API Endpoints</h6>
-                                <div>
-                                    <button id="refreshDebugBtn" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-sync-alt me-1"></i> Refresh
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="list-group mb-4" id="debugEndpoints">
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/risk_summary">Risk Summary</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/debug_risk_summary">Debug Risk Summary</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/risk_analysis">Risk Analysis</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/positions">Positions</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/total_unrealized_pnl">PnL Metrics</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/portfolio_heat">Portfolio Heat Metrics</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/margin_utilization">Margin Utilization Metrics</a>
-                                <a href="#" class="list-group-item list-group-item-action" data-endpoint="/api/metrics/account_value">Account Value Metrics</a>
-                            </div>
-                            
-                            <h6>Response</h6>
-                            <pre id="debugResponse" class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;">Select an endpoint to see the response</pre>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Initialize the modal
-            const debugModal = new bootstrap.Modal(document.getElementById('debugModal'));
-            debugModal.show();
-            
-            // Add event listeners to endpoint links
-            document.querySelectorAll('#debugEndpoints a').forEach(link => {
-                link.addEventListener('click', async function(e) {
-                    e.preventDefault();
-                    
-                    const endpoint = this.getAttribute('data-endpoint');
-                    const responseElement = document.getElementById('debugResponse');
-                    
-                    // Clear previous selection
-                    document.querySelectorAll('#debugEndpoints a').forEach(el => {
-                        el.classList.remove('active');
-                    });
-                    
-                    // Mark this as active
-                    this.classList.add('active');
-                    
-                    try {
-                        responseElement.textContent = 'Loading...';
-                        
-                        const response = await fetch(endpoint);
-                        const data = await response.json();
-                        
-                        responseElement.textContent = JSON.stringify(data, null, 2);
-                    } catch (error) {
-                        responseElement.textContent = `Error: ${error.message}`;
-                    }
-                });
-            });
-            
-            // Add refresh button functionality
-            document.getElementById('refreshDebugBtn').addEventListener('click', function() {
-                const activeEndpoint = document.querySelector('#debugEndpoints a.active');
-                if (activeEndpoint) {
-                    activeEndpoint.click();
-                }
-            });
-            
-        } catch (error) {
-            console.error('Debug error:', error);
-            showError('Debug error: ' + error.message);
-        } finally {
-            debugBtn.innerHTML = '<i class="fas fa-bug me-1"></i> Debug';
-        }
+    debugBtn.innerHTML = '<i class="fas fa-bug"></i> Debug';
+    debugBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        debugAPI();
     });
+    
+    // Add to navbar
+    const navbar = document.querySelector('.navbar-nav');
+    if (navbar) {
+        navbar.prepend(debugBtn);
+        console.log('Debug button added to navbar');
+    } else {
+        console.error('Could not find navbar to add debug button');
+    }
 }
 
 // Initialize tooltips
 function initTooltips() {
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+}
+
+// Handle position action buttons
+function handlePositionAction(e) {
+    e.preventDefault();
+    const action = e.currentTarget.dataset.action;
+    const coin = e.currentTarget.dataset.coin;
+    
+    if (action === 'chart') {
+        // Set the selected position and update the chart
+        selectedPosition = coin;
+        positionSelect.value = coin;
+        updatePositionMetricsChart();
+    } else if (action === 'details') {
+        // Show position details
+        showPositionDetails(coin);
+    }
+}
+
+// Show position details
+function showPositionDetails(coin) {
+    // Find the position data
+    const positions = document.querySelectorAll('#positionsTable tbody tr');
+    let positionData = null;
+    
+    positions.forEach(row => {
+        if (row.querySelector('td:first-child').textContent.trim() === coin) {
+            positionData = {
+                coin: coin,
+                size: row.querySelector('td:nth-child(2)').textContent,
+                leverage: row.querySelector('td:nth-child(3)').textContent,
+                marginType: row.querySelector('td:nth-child(4)').textContent,
+                riskScore: row.querySelector('td:nth-child(5)').textContent,
+                liqDistance: row.querySelector('td:nth-child(6)').textContent,
+                marginUsed: row.querySelector('td:nth-child(7)').textContent,
+                pnl: row.querySelector('td:nth-child(8)').textContent
+            };
+        }
+    });
+    
+    if (!positionData) {
+        showError(`Could not find details for ${coin}`);
+        return;
+    }
+    
+    // Create modal content
+    const modalTitle = document.querySelector('#positionDetailsModal .modal-title');
+    const modalBody = document.querySelector('#positionDetailsModal .modal-body');
+    
+    modalTitle.textContent = `${coin} Position Details`;
+    modalBody.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <p><strong>Size:</strong> ${positionData.size}</p>
+                <p><strong>Leverage:</strong> ${positionData.leverage}</p>
+                <p><strong>Margin Type:</strong> ${positionData.marginType}</p>
+                <p><strong>Risk Score:</strong> ${positionData.riskScore}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Liquidation Distance:</strong> ${positionData.liqDistance}</p>
+                <p><strong>Margin Used:</strong> ${positionData.marginUsed}</p>
+                <p><strong>Unrealized PnL:</strong> ${positionData.pnl}</p>
+            </div>
+        </div>
+    `;
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('positionDetailsModal'));
+    modal.show();
 } 
