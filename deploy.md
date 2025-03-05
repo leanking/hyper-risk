@@ -70,39 +70,73 @@ In the Render dashboard, add the following environment variables under the "Envi
 - `SUPABASE_URL`: Your Supabase project URL
 - `SUPABASE_KEY`: Your Supabase API key (service role key)
 
-## Step 4: Add a Render.yaml File (Optional)
+## Step 4: Add a Render.yaml File (Recommended)
 
-For easier deployment, you can add a `render.yaml` file to your repository root:
+For easier deployment and infrastructure-as-code practices, add a `render.yaml` file to your repository root. This allows for Blueprint deployments and makes it easier to maintain consistent environments.
+
+Create a file named `render.yaml` in the root of your repository with the following content:
 
 ```yaml
 services:
   - type: web
     name: hyperliquid-risk-dashboard
     runtime: rust
+    plan: starter
+    region: oregon  # Change to your preferred region
     buildCommand: cargo build --release
     startCommand: ./target/release/risk_dashboard
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: WALLET_ADDRESS
-        sync: false
+        sync: false  # This will prompt for the value during deployment
       - key: API_URL
         value: https://api.hyperliquid.xyz
       - key: LOG_TO_CONSOLE
-        value: true
+        value: "true"
       - key: LOG_TO_DATABASE
-        value: false
+        value: "false"
       - key: LOG_INTERVAL_SECONDS
-        value: 60
+        value: "60"
+      - key: DASHBOARD_PORT
+        value: "8080"
       - key: RATE_LIMIT_REQUESTS_PER_MINUTE
-        value: 60
+        value: "60"
       - key: RATE_LIMIT_STATIC_PER_MINUTE
-        value: 120
+        value: "120"
       - key: RATE_LIMIT_SETTINGS_PER_MINUTE
-        value: 20
+        value: "20"
+      - key: MAX_POSITION_SIZE_USD
+        value: "100000"
+      - key: MAX_LEVERAGE
+        value: "50"
+      - key: MAX_DRAWDOWN_PCT
+        value: "15"
+      - key: MAX_POSITION_PCT
+        value: "20"
+      - key: MIN_DISTANCE_TO_LIQ
+        value: "10"
+      - key: MAX_CORRELATION
+        value: "0.7"
+      - key: MAX_MARGIN_UTILIZATION
+        value: "80"
+      # Uncomment and set these if using Supabase
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_KEY
+      #   sync: false
 ```
+
+With this file in your repository, you can deploy your application using Render Blueprints:
+
+1. Go to the Render dashboard and click "New" > "Blueprint"
+2. Connect your repository
+3. Render will automatically detect the `render.yaml` file and set up the services as defined
+4. You'll be prompted to enter values for any environment variables with `sync: false`
 
 ## Step 5: Deploy the Application
 
-1. Click "Create Web Service" to start the deployment process
+1. Click "Create Web Service" (or "Apply Blueprint" if using render.yaml) to start the deployment process
 2. Render will automatically build and deploy your application
 3. Once deployment is complete, you'll receive a URL for your application (e.g., `https://hyperliquid-risk-dashboard.onrender.com`)
 
@@ -122,6 +156,12 @@ If you want to use database logging with Supabase:
 ## Step 7: Set Up Continuous Deployment (Optional)
 
 Render automatically sets up continuous deployment from your GitHub repository. Whenever you push changes to your repository, Render will automatically rebuild and redeploy your application.
+
+You can configure auto-deployment settings in the Render dashboard:
+
+1. Go to your web service in the Render dashboard
+2. Click on "Settings" > "Build & Deploy"
+3. Configure auto-deploy settings according to your preferences
 
 ## Step 8: Monitor Your Application
 
@@ -158,6 +198,7 @@ If your application is slow or unresponsive:
 ## Additional Resources
 
 - [Render Documentation](https://render.com/docs)
+- [Render Blueprints](https://render.com/docs/blueprint-spec)
 - [Rust on Render](https://render.com/docs/deploy-rust)
 - [Supabase Documentation](https://supabase.com/docs)
 - [HyperLiquid API Documentation](https://hyperliquid.xyz/docs)

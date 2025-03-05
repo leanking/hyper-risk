@@ -86,9 +86,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up auto-refresh (every 60 seconds)
     refreshInterval = setInterval(refreshAllData, 60000);
-    
-    // Add debug button
-    addDebugButton();
 });
 
 // Redraw all charts to apply theme changes
@@ -1285,10 +1282,17 @@ async function debugAPI() {
 function addDebugButton() {
     console.log('Adding debug button...');
     
+    // Check if debug button already exists
+    if (document.getElementById('debugBtn')) {
+        console.log('Debug button already exists, not adding another one');
+        return;
+    }
+    
     // Create debug button
     const debugBtn = document.createElement('button');
     debugBtn.className = 'btn btn-sm btn-outline-secondary ms-2';
     debugBtn.innerHTML = '<i class="fas fa-bug"></i> Debug';
+    debugBtn.id = 'debugBtn'; // Add ID for easy reference
     debugBtn.addEventListener('click', function(e) {
         e.preventDefault();
         debugAPI();
