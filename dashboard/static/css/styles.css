@@ -13,6 +13,10 @@
     --navbar-color: #fff;
     --input-bg: #ffffff;
     --summary-card-height: 150px;
+    --warning-low-color: #28a745;
+    --warning-medium-color: #ffc107;
+    --warning-high-color: #fd7e14;
+    --warning-critical-color: #dc3545;
 }
 
 [data-theme="dark"] {
@@ -28,6 +32,10 @@
     --navbar-bg: #1e1e1e;
     --navbar-color: #e9ecef;
     --input-bg: #2b3035;
+    --warning-low-color: #28a745;
+    --warning-medium-color: #ffc107;
+    --warning-high-color: #fd7e14;
+    --warning-critical-color: #dc3545;
 }
 
 body {
@@ -512,4 +520,66 @@ h1, h2, h3, h4, h5, h6, p, span, div {
 
 [data-theme="dark"] #refreshData:hover {
     color: var(--primary-color);
+}
+
+/* Warnings Card Styles */
+.warnings-card {
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.warnings-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.warning-icon {
+    font-size: 1.5rem;
+    color: var(--warning-medium-color);
+    transition: transform 0.3s ease;
+}
+
+.warning-count-0 .warning-icon {
+    color: var(--warning-low-color);
+}
+
+.warning-count-low .warning-icon {
+    color: var(--warning-low-color);
+}
+
+.warning-count-medium .warning-icon {
+    color: var(--warning-medium-color);
+    animation: pulse 2s infinite;
+}
+
+.warning-count-high .warning-icon {
+    color: var(--warning-high-color);
+    animation: pulse 1.5s infinite;
+}
+
+.warning-count-critical .warning-icon {
+    color: var(--warning-critical-color);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Modal Warnings Container */
+#warningsModal .modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+#warningsContainer .warning-card {
+    margin-bottom: 10px;
 } 

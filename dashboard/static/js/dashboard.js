@@ -10,9 +10,17 @@ const refreshDataBtn = document.getElementById('refreshData');
 const positionSelect = document.getElementById('positionSelect');
 const themeToggle = document.getElementById('checkbox');
 const themeIcon = document.querySelector('.theme-icon i');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsForm = document.getElementById('settingsForm');
 
 // Initialize the dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    initTooltips();
+    
+    // Initialize charts object
+    charts = {};
+    
     // Set up event listeners
     refreshDataBtn.addEventListener('click', function(e) {
         e.preventDefault();
@@ -422,12 +430,20 @@ function updatePositionsTable(positions, positionMetrics) {
 // Update warnings display
 function updateWarnings(warnings) {
     const warningsContainer = document.getElementById('warningsContainer');
+    const warningCount = document.getElementById('warningCount');
+    const warningsCard = document.getElementById('warningsCard');
+    
+    // Update warning count
+    warningCount.textContent = warnings.length;
     
     // Clear existing warnings
     warningsContainer.innerHTML = '';
     
     if (warnings.length === 0) {
         warningsContainer.innerHTML = '<p class="text-center text-muted">No active warnings</p>';
+        
+        // Update card styling for no warnings
+        warningsCard.className = 'card bg-light warnings-card warning-count-0';
         return;
     }
     
@@ -436,6 +452,10 @@ function updateWarnings(warnings) {
         const severityOrder = { 'Critical': 3, 'High': 2, 'Medium': 1, 'Low': 0 };
         return severityOrder[b.severity] - severityOrder[a.severity];
     });
+    
+    // Determine highest severity for card styling
+    const highestSeverity = warnings[0].severity.toLowerCase();
+    warningsCard.className = `card bg-light warnings-card warning-count-${highestSeverity}`;
     
     // Add warning cards
     warnings.forEach(warning => {
@@ -536,23 +556,32 @@ function updatePnlChart(data) {
     }];
     
     const layout = {
-        margin: { t: 10, r: 50, b: 40, l: 50 },
+        // Increase margins to prevent clipping
+        margin: { t: 20, r: 60, b: 40, l: 60 },
         height: 450,
         xaxis: {
-            title: 'Time',
+            title: {
+                text: 'Time',
+                standoff: 10 // Add standoff to prevent title from being cut off
+            },
             showgrid: true,
             gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             color: isDarkMode ? '#e9ecef' : '#212529',
-            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            automargin: true // Add automargin to prevent axis labels from being cut off
         },
         yaxis: {
-            title: 'PnL (USD)',
+            title: {
+                text: 'PnL (USD)',
+                standoff: 10 // Add standoff to prevent title from being cut off
+            },
             titlefont: { color: '#4CAF50' },
             tickfont: { color: '#4CAF50' },
             showgrid: true,
             gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             color: isDarkMode ? '#e9ecef' : '#212529',
-            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            automargin: true // Add automargin to prevent axis labels from being cut off
         },
         showlegend: false,
         plot_bgcolor: 'rgba(0,0,0,0)',
@@ -649,16 +678,25 @@ function updateRiskMetricsChart(data, label) {
             }];
             
             const layout = {
-                margin: { t: 10, r: 10, b: 40, l: 60 },
+                // Increase margins to prevent clipping
+                margin: { t: 20, r: 60, b: 40, l: 60 },
                 xaxis: {
-                    title: 'Time',
+                    title: {
+                        text: 'Time',
+                        standoff: 10
+                    },
                     showgrid: false,
-                    color: isDarkMode ? '#e9ecef' : '#212529'
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    automargin: true
                 },
                 yaxis: {
-                    title: 'Value',
+                    title: {
+                        text: 'Value',
+                        standoff: 10
+                    },
                     showgrid: true,
-                    color: isDarkMode ? '#e9ecef' : '#212529'
+                    color: isDarkMode ? '#e9ecef' : '#212529',
+                    automargin: true
                 },
                 showlegend: true,
                 plot_bgcolor: 'rgba(0,0,0,0)',
@@ -695,19 +733,28 @@ function updateRiskMetricsChart(data, label) {
             }];
             
             const layout = {
-                margin: { t: 10, r: 10, b: 40, l: 60 },
+                // Increase margins to prevent clipping
+                margin: { t: 20, r: 60, b: 40, l: 60 },
                 xaxis: {
-                    title: 'Time',
+                    title: {
+                        text: 'Time',
+                        standoff: 10
+                    },
                     showgrid: false,
                     color: isDarkMode ? '#e9ecef' : '#212529',
-                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    automargin: true
                 },
                 yaxis: {
-                    title: 'Value',
+                    title: {
+                        text: 'Value',
+                        standoff: 10
+                    },
                     showgrid: true,
                     gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
                     color: isDarkMode ? '#e9ecef' : '#212529',
-                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                    linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                    automargin: true
                 },
                 showlegend: true,
                 legend: {
@@ -810,11 +857,10 @@ async function updatePositionMetricsChart() {
     const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
     
     try {
-        // Load position metrics in parallel
-        const [unrealizedPnlData, riskScoreData, distanceToLiqData] = await Promise.all([
+        // Load position metrics in parallel - removed distance to liquidation
+        const [unrealizedPnlData, riskScoreData] = await Promise.all([
             loadPositionMetricHistory(selectedPosition, 'unrealized_pnl'),
-            loadPositionMetricHistory(selectedPosition, 'risk_score'),
-            loadPositionMetricHistory(selectedPosition, 'distance_to_liquidation')
+            loadPositionMetricHistory(selectedPosition, 'risk_score')
         ]);
         
         // Prepare data for the charts
@@ -829,16 +875,17 @@ async function updatePositionMetricsChart() {
         const hovertemplate = '%{y:.2f}<br>%{text}<extra></extra>';
         const textLabels = timestamps.map(t => formatDate(t));
         
-        // Create a grid layout for the three charts
+        // Create a grid layout for the two charts
         const layout = {
             grid: {
-                rows: 3,
+                rows: 2,
                 columns: 1,
                 pattern: 'independent',
                 roworder: 'top to bottom'
             },
-            margin: { t: 30, r: 50, b: 10, l: 50 },
-            height: 450, // Increased height to accommodate three charts
+            // Increase margins to prevent clipping
+            margin: { t: 40, r: 60, b: 40, l: 60 },
+            height: 450,
             showlegend: false,
             plot_bgcolor: 'rgba(0,0,0,0)',
             paper_bgcolor: 'rgba(0,0,0,0)'
@@ -849,7 +896,9 @@ async function updatePositionMetricsChart() {
             showgrid: true,
             gridcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             color: isDarkMode ? '#e9ecef' : '#212529',
-            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+            linecolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            // Add automargin to prevent axis labels from being cut off
+            automargin: true
         };
         
         // Add specific settings for each subplot
@@ -862,40 +911,29 @@ async function updatePositionMetricsChart() {
             ...commonAxisSettings,
             title: {
                 text: 'Unrealized PnL (USD)',
-                font: { color: '#4CAF50' }
+                font: { color: '#4CAF50' },
+                standoff: 10 // Add standoff to prevent title from being cut off
             },
             tickfont: { color: '#4CAF50' }
         };
         
         layout.xaxis2 = {
             ...commonAxisSettings,
-            showticklabels: false, // Hide x-axis labels for middle chart
+            title: {
+                text: 'Time',
+                font: { size: 12 },
+                standoff: 10 // Add standoff to prevent title from being cut off
+            },
             domain: [0, 1]
         };
         layout.yaxis2 = {
             ...commonAxisSettings,
             title: {
                 text: 'Risk Score',
-                font: { color: '#FF5722' }
+                font: { color: '#FF5722' },
+                standoff: 10 // Add standoff to prevent title from being cut off
             },
             tickfont: { color: '#FF5722' }
-        };
-        
-        layout.xaxis3 = {
-            ...commonAxisSettings,
-            title: {
-                text: 'Time',
-                font: { size: 12 }
-            },
-            domain: [0, 1]
-        };
-        layout.yaxis3 = {
-            ...commonAxisSettings,
-            title: {
-                text: 'Distance to Liquidation (%)',
-                font: { color: '#2196F3' }
-            },
-            tickfont: { color: '#2196F3' }
         };
         
         // Create data for each chart
@@ -931,22 +969,6 @@ async function updatePositionMetricsChart() {
                 hovertemplate: hovertemplate,
                 xaxis: 'x2',
                 yaxis: 'y2'
-            },
-            // Distance to Liquidation chart
-            {
-                x: timestamps,
-                y: distanceToLiqData.data.map(item => item.value),
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Distance to Liquidation (%)',
-                line: {
-                    color: '#2196F3',
-                    width: 2
-                },
-                text: textLabels,
-                hovertemplate: hovertemplate,
-                xaxis: 'x3',
-                yaxis: 'y3'
             }
         ];
         
@@ -973,20 +995,7 @@ async function updatePositionMetricsChart() {
                 },
                 showarrow: false,
                 x: 0.02,
-                y: 0.68,
-                xref: 'paper',
-                yref: 'paper',
-                xanchor: 'left'
-            },
-            {
-                text: 'Distance to Liquidation (%)',
-                font: {
-                    size: 14,
-                    color: '#2196F3'
-                },
-                showarrow: false,
-                x: 0.02,
-                y: 0.35,
+                y: 0.48,
                 xref: 'paper',
                 yref: 'paper',
                 xanchor: 'left'
@@ -1270,4 +1279,10 @@ function addDebugButton() {
             debugBtn.innerHTML = '<i class="fas fa-bug me-1"></i> Debug';
         }
     });
+}
+
+// Initialize tooltips
+function initTooltips() {
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 } 

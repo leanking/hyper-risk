@@ -7,7 +7,8 @@ A web-based dashboard for visualizing and monitoring risk metrics for HyperLiqui
 - Real-time monitoring of portfolio risk metrics
 - Interactive charts for PnL, account value, and risk metrics
 - Position-specific metrics and analysis
-- Risk warnings and alerts
+- Interactive Risk Warnings with severity indicators
+- Informative tooltips for key metrics
 - Responsive design for desktop and mobile
 - Debug tools for troubleshooting API issues
 - User settings management
@@ -67,17 +68,10 @@ http://localhost:8080
 
 ### Risk Summary Cards
 
-- **Portfolio Heat**: Overall risk score for your portfolio (0-100)
-- **Margin Utilization**: Percentage of available margin in use
-- **Highest Risk Position**: Position with the highest risk score
-- **Risk Warnings**: Count of active risk warnings
-
-### Charts
-
-- **PnL Over Time**: Track your unrealized profit and loss
-- **Account Value**: Monitor your total account value
-- **Risk Metrics**: View portfolio heat and margin utilization trends
-- **Position Metrics**: Position-specific metrics including PnL, risk score, and distance to liquidation
+- **Portfolio Heat**: Overall risk score for your portfolio (0-100) with tooltip explanation
+- **Margin Utilization**: Percentage of available margin in use with tooltip explanation
+- **Total Account Value**: Current account balance with tooltip explanation
+- **Risk Warnings**: Clickable card showing count of active warnings with severity-based indicators and tooltip explanation
 
 ### Positions Table
 
@@ -94,9 +88,21 @@ Detailed view of all your current positions with key metrics:
 - ROE
 - Risk Score
 
-### Risk Warnings
+### Charts
 
-Active warnings with severity levels and suggested actions.
+- **PnL Over Time**: Track your unrealized profit and loss
+- **Position Metrics**: Position-specific metrics including PnL and risk score
+- **Risk Metrics**: View portfolio heat and margin utilization trends
+
+All charts feature optimized layouts with proper margins and boundaries to ensure axis labels and data are clearly visible.
+
+### Risk Warnings Modal
+
+Clicking on the Risk Warnings card opens a modal with detailed information about each warning:
+- Severity level (Low, Medium, High, Critical) with color coding
+- Warning type and description
+- Related position (if applicable)
+- Suggested action to mitigate the risk
 
 ### Debug Tools
 
@@ -146,6 +152,12 @@ You can customize the dashboard by modifying the following files:
 
 ## Recent Updates
 
+- Improved chart layouts with optimized margins and boundaries to prevent clipping
+- Added informative tooltips to all summary cards for better understanding of metrics
+- Improved layout with positions table moved above charts for better visibility
+- Simplified position metrics chart to focus on key metrics (PnL and risk score)
+- Added interactive Risk Warnings card with severity-based indicators
+- Moved warnings to a modal dialog for cleaner interface
 - Added improved error handling for chart data loading
 - Fixed issues with PnL and Risk Metrics charts not displaying correctly
 - Added debug tools for API troubleshooting

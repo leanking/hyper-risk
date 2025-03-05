@@ -62,7 +62,13 @@
             <div class="col-md-3">
                 <div class="card bg-light">
                     <div class="card-body">
-                        <h5 class="card-title">Portfolio Heat</h5>
+                        <h5 class="card-title">
+                            Portfolio Heat
+                            <i class="fas fa-info-circle ms-1 text-muted" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="A 0-100 score based on leverage, liquidation risk, and position concentration. Higher values indicate higher risk."></i>
+                        </h5>
                         <div class="d-flex align-items-center">
                             <div class="display-4 me-3" id="portfolioHeat">--</div>
                             <div class="progress flex-grow-1" style="height: 10px;">
@@ -75,7 +81,13 @@
             <div class="col-md-3">
                 <div class="card bg-light">
                     <div class="card-body">
-                        <h5 class="card-title">Margin Utilization</h5>
+                        <h5 class="card-title">
+                            Margin Utilization
+                            <i class="fas fa-info-circle ms-1 text-muted" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Percentage of available margin currently in use across all positions. Higher values indicate less available capital."></i>
+                        </h5>
                         <div class="d-flex align-items-center">
                             <div class="display-4 me-3" id="marginUtilization">--</div>
                             <div class="progress flex-grow-1" style="height: 10px;">
@@ -88,18 +100,71 @@
             <div class="col-md-3">
                 <div class="card bg-light">
                     <div class="card-body">
-                        <h5 class="card-title">Total Account Value</h5>
+                        <h5 class="card-title">
+                            Total Account Value
+                            <i class="fas fa-info-circle ms-1 text-muted" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Current total value of your account including all positions and available margin."></i>
+                        </h5>
                         <div class="display-4" id="accountValue">--</div>
                         <div class="text-muted">Current balance</div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-light">
+                <div class="card bg-light warnings-card" id="warningsCard" role="button" data-bs-toggle="modal" data-bs-target="#warningsModal">
                     <div class="card-body">
-                        <h5 class="card-title">Risk Warnings</h5>
-                        <div class="display-4" id="warningCount">--</div>
+                        <h5 class="card-title">
+                            Risk Warnings
+                            <i class="fas fa-info-circle ms-1 text-muted" 
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top" 
+                               title="Active risk warnings that require attention. Click to view details and suggested actions."></i>
+                        </h5>
+                        <div class="d-flex align-items-center">
+                            <div class="display-4" id="warningCount">--</div>
+                            <div class="ms-auto">
+                                <i class="fas fa-exclamation-triangle warning-icon"></i>
+                            </div>
+                        </div>
                         <div class="text-muted">Active warnings</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Positions Table -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Current Positions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="positionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Coin</th>
+                                        <th>Size</th>
+                                        <th>Entry Price</th>
+                                        <th>Leverage</th>
+                                        <th>Liquidation Price</th>
+                                        <th>Unrealized PnL</th>
+                                        <th>Margin Used</th>
+                                        <th>Position Value</th>
+                                        <th>ROE</th>
+                                        <th>Risk Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="10" class="text-center">Loading positions data...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -144,58 +209,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Positions Table -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Current Positions</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover" id="positionsTable">
-                                <thead>
-                                    <tr>
-                                        <th>Coin</th>
-                                        <th>Size</th>
-                                        <th>Entry Price</th>
-                                        <th>Leverage</th>
-                                        <th>Liquidation Price</th>
-                                        <th>Unrealized PnL</th>
-                                        <th>Margin Used</th>
-                                        <th>Position Value</th>
-                                        <th>ROE</th>
-                                        <th>Risk Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td colspan="10" class="text-center">Loading positions data...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Risk Warnings -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Risk Warnings</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="warningsContainer">
-                            <p class="text-center text-muted">No active warnings</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Bootstrap JS -->
@@ -203,6 +216,26 @@
     
     <!-- Custom JS -->
     <script src="js/dashboard.js"></script>
+    
+    <!-- Warnings Modal -->
+    <div class="modal fade" id="warningsModal" tabindex="-1" aria-labelledby="warningsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="warningsModalLabel">Risk Warnings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="warningsContainer">
+                        <p class="text-center text-muted">No active warnings</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Settings Modal -->
     <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
