@@ -105,17 +105,20 @@ impl DataLogger {
         // Position details
         if !log_entry.position_metrics.is_empty() {
             println!("POSITIONS:");
-            println!("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10}", 
-                     "COIN", "SIZE", "LEV", "RISK", "LIQ DIST", "PNL");
+            println!("{:<10} {:<10} {:<10} {:<10} {:<10} {:<10}% {:<10} {:<10}", 
+                     "COIN", "SIZE", "LEV", "TYPE", "RISK SCORE", "LIQ DIST", "MARGIN", "PNL");
             
             for metrics in &log_entry.position_metrics {
                 let pos = &metrics.position;
-                println!("{:<10} {:<10.2} {:<10.1}x {:<10.1} {:<10.2}% ${:<10.2}", 
+                let margin_type = if pos.is_cross { "cross" } else { "isolated" };
+                println!("{:<10} {:<10.2} {:<10.1}x {:<10} {:<10.1} {:<10.2} ${:<10.2} ${:<10.2}", 
                          pos.coin,
                          pos.size,
                          pos.leverage,
+                         margin_type,
                          metrics.risk_score,
                          metrics.distance_to_liquidation,
+                         pos.margin_used,
                          pos.unrealized_pnl);
             }
             println!();

@@ -132,23 +132,35 @@ impl RiskLimiter {
             
             // Check leverage
             let max_leverage = self.config.risk_limits.max_leverage;
-            if position.leverage > max_leverage * 0.8 {
+            // For isolated margin, we apply stricter leverage checks
+            let leverage_threshold = if position.is_cross {
+                max_leverage * 0.8
+            } else {
+                max_leverage * 0.7 // Stricter threshold for isolated positions
+            };
+            
+            if position.leverage > leverage_threshold {
                 let severity = if position.leverage >= max_leverage {
+                    RiskSeverity::High
+                } else if !position.is_cross && position.leverage >= max_leverage * 0.9 {
+                    // Higher severity for isolated positions approaching max leverage
                     RiskSeverity::High
                 } else {
                     RiskSeverity::Medium
                 };
                 
+                let margin_type = if position.is_cross { "cross" } else { "isolated" };
+                
                 warnings.push(RiskWarning {
                     warning_type: RiskWarningType::HighLeverage,
                     severity,
                     message: format!(
-                        "{}: Leverage is high at {:.2}x (threshold: {:.2}x)",
-                        position.coin, position.leverage, max_leverage
+                        "{}: {} margin leverage is high at {:.2}x (threshold: {:.2}x)",
+                        position.coin, margin_type, position.leverage, max_leverage
                     ),
                     suggested_action: format!(
-                        "Consider reducing leverage for {} position.",
-                        position.coin
+                        "Consider reducing leverage for {} position or switching to {} margin.",
+                        position.coin, if position.is_cross { "lower" } else { "cross" }
                     ),
                     related_position: Some(position.coin.clone()),
                 });
@@ -156,25 +168,38 @@ impl RiskLimiter {
             
             // Check distance to liquidation
             let min_distance = self.config.risk_limits.min_distance_to_liq;
-            if metrics.distance_to_liquidation < min_distance {
+            // For isolated margin, we need a larger buffer to liquidation
+            let distance_threshold = if position.is_cross {
+                min_distance
+            } else {
+                min_distance * 1.5 // Higher threshold for isolated positions
+            };
+            
+            if metrics.distance_to_liquidation < distance_threshold {
                 let severity = if metrics.distance_to_liquidation < min_distance * 0.5 {
                     RiskSeverity::Critical
                 } else if metrics.distance_to_liquidation < min_distance * 0.7 {
+                    RiskSeverity::High
+                } else if !position.is_cross && metrics.distance_to_liquidation < min_distance {
+                    // Higher severity for isolated positions
                     RiskSeverity::High
                 } else {
                     RiskSeverity::Medium
                 };
                 
+                let margin_type = if position.is_cross { "cross" } else { "isolated" };
+                
                 warnings.push(RiskWarning {
                     warning_type: RiskWarningType::LiquidationRisk,
                     severity,
                     message: format!(
-                        "{}: Close to liquidation at {:.2}% distance (threshold: {:.2}%)",
-                        position.coin, metrics.distance_to_liquidation, min_distance
+                        "{}: {} margin position close to liquidation at {:.2}% distance (threshold: {:.2}%)",
+                        position.coin, margin_type, metrics.distance_to_liquidation, distance_threshold
                     ),
                     suggested_action: format!(
-                        "Urgently reduce position size or add margin to the {} position.",
-                        position.coin
+                        "Urgently reduce position size or add margin to the {} position{}.",
+                        position.coin,
+                        if !position.is_cross { " or consider switching to cross margin" } else { "" }
                     ),
                     related_position: Some(position.coin.clone()),
                 });
@@ -182,17 +207,34 @@ impl RiskLimiter {
             
             // Check position size
             let max_position_pct = self.config.risk_limits.max_position_pct;
-            if metrics.position_size_ratio > max_position_pct {
+            // For isolated margin, we apply stricter position size limits
+            let position_size_threshold = if position.is_cross {
+                max_position_pct
+            } else {
+                max_position_pct * 0.8 // Stricter threshold for isolated positions
+            };
+            
+            if metrics.position_size_ratio > position_size_threshold {
+                let severity = if !position.is_cross && metrics.position_size_ratio > max_position_pct {
+                    // Higher severity for isolated positions exceeding the normal threshold
+                    RiskSeverity::High
+                } else {
+                    RiskSeverity::Medium
+                };
+                
+                let margin_type = if position.is_cross { "cross" } else { "isolated" };
+                
                 warnings.push(RiskWarning {
                     warning_type: RiskWarningType::PositionSizeExceeded,
-                    severity: RiskSeverity::Medium,
+                    severity,
                     message: format!(
-                        "{}: Position size is {:.2}% of portfolio (threshold: {:.2}%)",
-                        position.coin, metrics.position_size_ratio, max_position_pct
+                        "{}: {} margin position uses {:.2}% of account value (threshold: {:.2}%)",
+                        position.coin, margin_type, metrics.position_size_ratio, position_size_threshold
                     ),
                     suggested_action: format!(
-                        "Consider reducing the size of the {} position to improve diversification.",
-                        position.coin
+                        "Consider reducing the size of the {} position to improve diversification{}.",
+                        position.coin,
+                        if !position.is_cross { " or switching to cross margin" } else { "" }
                     ),
                     related_position: Some(position.coin.clone()),
                 });

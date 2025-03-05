@@ -43,9 +43,12 @@ impl RiskManagementSystem {
         // Get current positions
         let positions = self.position_tracker.get_current_positions().await?;
         
+        // Get account summary
+        let account_summary = self.position_tracker.get_account_summary().await?;
+        
         // Calculate risk metrics
-        let portfolio_metrics = self.risk_calculator.calculate_portfolio_metrics(&positions)?;
-        let position_metrics = self.risk_calculator.calculate_position_metrics(&positions)?;
+        let portfolio_metrics = self.risk_calculator.calculate_portfolio_metrics(&positions, &account_summary)?;
+        let position_metrics = self.risk_calculator.calculate_position_metrics(&positions, &account_summary)?;
         
         // Check risk limits
         let warnings = self.risk_limiter.check_thresholds(&portfolio_metrics, &position_metrics)?;

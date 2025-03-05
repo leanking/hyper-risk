@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::risk_management::{Position, PortfolioMetrics, PositionMetrics, RiskConfig};
+use crate::risk_management::{Position, PortfolioMetrics, PositionMetrics, RiskConfig, AccountSummary};
 
 /// Risk calculation engine for assessing position and portfolio risks
 pub struct RiskCalculator {
@@ -13,7 +13,7 @@ impl RiskCalculator {
     }
     
     /// Calculates portfolio-level risk metrics
-    pub fn calculate_portfolio_metrics(&self, positions: &[Position]) -> Result<PortfolioMetrics> {
+    pub fn calculate_portfolio_metrics(&self, positions: &[Position], account_summary: &AccountSummary) -> Result<PortfolioMetrics> {
         if positions.is_empty() {
             return Ok(PortfolioMetrics {
                 portfolio_heat: 0.0,
@@ -21,7 +21,7 @@ impl RiskCalculator {
                 risk_adjusted_return: 0.0,
                 margin_utilization: 0.0,
                 total_unrealized_pnl: 0.0,
-                account_value: 0.0,
+                account_value: account_summary.account_value,
                 total_position_value: 0.0,
                 average_leverage: 0.0,
             });
@@ -29,16 +29,24 @@ impl RiskCalculator {
         
         // Calculate total values
         let total_position_value: f64 = positions.iter().map(|p| p.position_value.abs()).sum();
-        let total_margin_used: f64 = positions.iter().map(|p| p.margin_used).sum();
+        
+        // Separate cross and isolated positions for margin calculations
+        let cross_positions: Vec<&Position> = positions.iter().filter(|p| p.is_cross).collect();
+        let isolated_positions: Vec<&Position> = positions.iter().filter(|p| !p.is_cross).collect();
+        
+        // Calculate margin used for cross positions
+        let cross_margin_used: f64 = cross_positions.iter().map(|p| p.margin_used).sum();
+        
+        // For isolated positions, each position's margin is independent
+        let isolated_margin_used: f64 = isolated_positions.iter().map(|p| p.margin_used).sum();
+        
+        // Total margin used is the sum of cross and isolated margins
+        let total_margin_used: f64 = cross_margin_used + isolated_margin_used;
+        
         let total_unrealized_pnl: f64 = positions.iter().map(|p| p.unrealized_pnl).sum();
         
-        // Get the first position's account value - assuming it's the same for all positions
-        // In a real implementation, we would want to fetch this separately
-        let account_value = if let Some(first_pos) = positions.first() {
-            total_margin_used / (first_pos.margin_used / first_pos.position_value) 
-        } else {
-            0.0
-        };
+        // Use the account value from the account summary
+        let account_value = account_summary.account_value;
         
         // Calculate margin utilization
         let margin_utilization = if account_value > 0.0 {
@@ -48,12 +56,27 @@ impl RiskCalculator {
         };
         
         // Calculate average leverage (weighted by position size)
-        let weighted_leverage_sum: f64 = positions.iter()
+        // For cross positions, use the standard calculation
+        let cross_weighted_leverage_sum: f64 = cross_positions.iter()
             .map(|p| p.leverage * p.position_value.abs())
             .sum();
         
+        // We don't need this variable since we're using total_position_value
+        // Prefix with underscore to indicate it's intentionally unused
+        let _cross_position_value: f64 = cross_positions.iter().map(|p| p.position_value.abs()).sum();
+        
+        // For isolated positions, calculate separately
+        let isolated_weighted_leverage_sum: f64 = isolated_positions.iter()
+            .map(|p| p.leverage * p.position_value.abs())
+            .sum();
+        
+        // We don't need this variable since we're using total_position_value
+        // Prefix with underscore to indicate it's intentionally unused
+        let _isolated_position_value: f64 = isolated_positions.iter().map(|p| p.position_value.abs()).sum();
+        
+        // Combine for weighted average leverage
         let average_leverage = if total_position_value > 0.0 {
-            weighted_leverage_sum / total_position_value
+            (cross_weighted_leverage_sum + isolated_weighted_leverage_sum) / total_position_value
         } else {
             0.0
         };
@@ -93,13 +116,16 @@ impl RiskCalculator {
     }
     
     /// Calculates position-level risk metrics for each position
-    pub fn calculate_position_metrics(&self, positions: &[Position]) -> Result<Vec<PositionMetrics>> {
+    pub fn calculate_position_metrics(&self, positions: &[Position], account_summary: &AccountSummary) -> Result<Vec<PositionMetrics>> {
         if positions.is_empty() {
             return Ok(Vec::new());
         }
         
         // Calculate total position value for relative calculations
         let total_position_value: f64 = positions.iter().map(|p| p.position_value.abs()).sum();
+        
+        // Get account value for position size ratio calculations
+        let account_value = account_summary.account_value;
         
         // Calculate metrics for each position
         let mut position_metrics = Vec::with_capacity(positions.len());
@@ -108,9 +134,9 @@ impl RiskCalculator {
             // Calculate distance to liquidation
             let distance_to_liquidation = self.calculate_distance_to_liquidation(position);
             
-            // Calculate position size ratio
-            let position_size_ratio = if total_position_value > 0.0 {
-                (position.position_value.abs() / total_position_value) * 100.0
+            // Calculate position size ratio relative to account value
+            let position_size_ratio = if account_value > 0.0 {
+                (position.margin_used / account_value) * 100.0
             } else {
                 0.0
             };
@@ -181,21 +207,39 @@ impl RiskCalculator {
         position_size_ratio: f64,
     ) -> f64 {
         // Leverage component (0-40 points)
+        // For isolated margin, leverage risk is higher since it can't use margin from other positions
         let max_leverage = self.config.risk_limits.max_leverage;
-        let leverage_factor = (position.leverage / max_leverage) * 40.0;
+        let leverage_factor = if position.is_cross {
+            // Cross margin positions have slightly lower risk
+            (position.leverage / max_leverage) * 35.0
+        } else {
+            // Isolated margin positions have higher risk
+            (position.leverage / max_leverage) * 40.0
+        };
         
         // Liquidation distance component (0-40 points)
         // Smaller distance = higher risk
+        // For isolated margin, liquidation risk is more localized
         let min_distance = self.config.risk_limits.min_distance_to_liq;
         let distance_factor = if distance_to_liquidation < min_distance {
-            40.0 * (1.0 - (distance_to_liquidation / min_distance))
+            if position.is_cross {
+                // Cross margin has more buffer before liquidation
+                35.0 * (1.0 - (distance_to_liquidation / min_distance))
+            } else {
+                // Isolated margin has higher liquidation risk
+                40.0 * (1.0 - (distance_to_liquidation / min_distance))
+            }
         } else {
             0.0
         };
         
-        // Position size component (0-20 points)
+        // Position size component (0-20 points for cross, 0-25 for isolated)
         let max_position_pct = self.config.risk_limits.max_position_pct;
-        let size_factor = (position_size_ratio / max_position_pct) * 20.0;
+        let size_factor = if position.is_cross {
+            (position_size_ratio / max_position_pct) * 20.0
+        } else {
+            (position_size_ratio / max_position_pct) * 25.0
+        };
         
         // Sum all factors and cap at 100
         let score = leverage_factor + distance_factor + size_factor;
@@ -239,12 +283,43 @@ impl RiskCalculator {
         &self,
         positions: &[Position],
         margin_utilization: f64,
-        average_leverage: f64,
+        _average_leverage: f64, // Prefix with underscore since we're not using it anymore
         concentration_score: f64,
     ) -> f64 {
+        // Separate cross and isolated positions
+        let cross_positions: Vec<&Position> = positions.iter().filter(|p| p.is_cross).collect();
+        let isolated_positions: Vec<&Position> = positions.iter().filter(|p| !p.is_cross).collect();
+        
+        // Calculate total position values for weighting
+        let total_position_value: f64 = positions.iter().map(|p| p.position_value.abs()).sum();
+        let cross_position_value: f64 = cross_positions.iter().map(|p| p.position_value.abs()).sum();
+        let isolated_position_value: f64 = isolated_positions.iter().map(|p| p.position_value.abs()).sum();
+        
         // Leverage component (0-30 points)
         let max_leverage = self.config.risk_limits.max_leverage;
-        let leverage_factor = (average_leverage / max_leverage) * 30.0;
+        
+        // Calculate weighted leverage factor based on position types
+        let cross_leverage_factor = if cross_position_value > 0.0 {
+            let cross_avg_leverage = cross_positions.iter()
+                .map(|p| p.leverage * p.position_value.abs())
+                .sum::<f64>() / cross_position_value;
+            
+            (cross_avg_leverage / max_leverage) * 25.0 * (cross_position_value / total_position_value)
+        } else {
+            0.0
+        };
+        
+        let isolated_leverage_factor = if isolated_position_value > 0.0 {
+            let isolated_avg_leverage = isolated_positions.iter()
+                .map(|p| p.leverage * p.position_value.abs())
+                .sum::<f64>() / isolated_position_value;
+            
+            (isolated_avg_leverage / max_leverage) * 30.0 * (isolated_position_value / total_position_value)
+        } else {
+            0.0
+        };
+        
+        let leverage_factor = cross_leverage_factor + isolated_leverage_factor;
         
         // Margin utilization component (0-40 points)
         let max_margin = self.config.risk_limits.max_margin_utilization;
@@ -254,12 +329,22 @@ impl RiskCalculator {
         let concentration_factor = concentration_score * 0.2;
         
         // Liquidation risk component (0-10 points)
-        let liquidation_factor = positions.iter()
+        // Isolated positions have higher liquidation risk
+        let cross_liquidation_factor = cross_positions.iter()
+            .map(|p| self.calculate_distance_to_liquidation(p))
+            .filter(|&d| d < self.config.risk_limits.min_distance_to_liq)
+            .map(|d| 8.0 * (1.0 - (d / self.config.risk_limits.min_distance_to_liq)))
+            .sum::<f64>()
+            .min(8.0) * (cross_position_value / total_position_value);
+            
+        let isolated_liquidation_factor = isolated_positions.iter()
             .map(|p| self.calculate_distance_to_liquidation(p))
             .filter(|&d| d < self.config.risk_limits.min_distance_to_liq)
             .map(|d| 10.0 * (1.0 - (d / self.config.risk_limits.min_distance_to_liq)))
             .sum::<f64>()
-            .min(10.0);
+            .min(10.0) * (isolated_position_value / total_position_value);
+            
+        let liquidation_factor = cross_liquidation_factor + isolated_liquidation_factor;
         
         // Sum all factors and cap at 100
         let heat = leverage_factor + margin_factor + concentration_factor + liquidation_factor;
