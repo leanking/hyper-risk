@@ -295,4 +295,103 @@ impl DataLogger {
         
         Ok(())
     }
+    
+    /// Retrieves historical log entries from the log file
+    /// Returns a vector of log entries sorted by timestamp (newest first)
+    pub fn get_historical_data(&self, limit: usize) -> Result<Vec<LogEntry>> {
+        let mut log_entries = Vec::new();
+        
+        if let Some(ref path) = self.log_file_path {
+            // Check if the file exists
+            if !Path::new(path).exists() {
+                return Ok(vec![]);
+            }
+            
+            // Read the file line by line
+            let file = std::fs::File::open(path)?;
+            let reader = std::io::BufReader::new(file);
+            
+            for line in std::io::BufRead::lines(reader) {
+                let line = line?;
+                if let Ok(entry) = serde_json::from_str::<LogEntry>(&line) {
+                    log_entries.push(entry);
+                }
+            }
+            
+            // Sort by timestamp (newest first)
+            log_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            
+            // Limit the number of entries
+            if log_entries.len() > limit {
+                log_entries.truncate(limit);
+            }
+        }
+        
+        Ok(log_entries)
+    }
+    
+    /// Retrieves time series data for a specific metric
+    /// Returns a vector of (timestamp, value) pairs sorted by timestamp
+    pub fn get_time_series_data(&self, metric_name: &str, limit: usize) -> Result<Vec<(u64, f64)>> {
+        let log_entries = self.get_historical_data(limit)?;
+        let mut time_series = Vec::new();
+        
+        for entry in log_entries {
+            let value = match metric_name {
+                "portfolio_heat" => Some(entry.portfolio_metrics.portfolio_heat),
+                "concentration_score" => Some(entry.portfolio_metrics.concentration_score),
+                "risk_adjusted_return" => Some(entry.portfolio_metrics.risk_adjusted_return),
+                "margin_utilization" => Some(entry.portfolio_metrics.margin_utilization),
+                "total_unrealized_pnl" => Some(entry.portfolio_metrics.total_unrealized_pnl),
+                "account_value" => Some(entry.portfolio_metrics.account_value),
+                "total_position_value" => Some(entry.portfolio_metrics.total_position_value),
+                "average_leverage" => Some(entry.portfolio_metrics.average_leverage),
+                _ => None,
+            };
+            
+            if let Some(val) = value {
+                time_series.push((entry.timestamp, val));
+            }
+        }
+        
+        // Sort by timestamp (oldest first for time series)
+        time_series.sort_by(|a, b| a.0.cmp(&b.0));
+        
+        Ok(time_series)
+    }
+    
+    /// Retrieves position-specific time series data
+    /// Returns a vector of (timestamp, value) pairs sorted by timestamp for a specific position
+    pub fn get_position_time_series(&self, coin: &str, metric_name: &str, limit: usize) -> Result<Vec<(u64, f64)>> {
+        let log_entries = self.get_historical_data(limit)?;
+        let mut time_series = Vec::new();
+        
+        for entry in log_entries {
+            // Find the position metrics for this coin
+            if let Some(position_metric) = entry.position_metrics.iter().find(|p| p.position.coin == coin) {
+                let value = match metric_name {
+                    "size" => Some(position_metric.position.size),
+                    "unrealized_pnl" => Some(position_metric.position.unrealized_pnl),
+                    "margin_used" => Some(position_metric.position.margin_used),
+                    "position_value" => Some(position_metric.position.position_value),
+                    "return_on_equity" => Some(position_metric.position.return_on_equity),
+                    "leverage" => Some(position_metric.position.leverage),
+                    "distance_to_liquidation" => Some(position_metric.distance_to_liquidation),
+                    "position_size_ratio" => Some(position_metric.position_size_ratio),
+                    "risk_score" => Some(position_metric.risk_score),
+                    "contribution_to_portfolio" => Some(position_metric.contribution_to_portfolio),
+                    _ => None,
+                };
+                
+                if let Some(val) = value {
+                    time_series.push((entry.timestamp, val));
+                }
+            }
+        }
+        
+        // Sort by timestamp (oldest first for time series)
+        time_series.sort_by(|a, b| a.0.cmp(&b.0));
+        
+        Ok(time_series)
+    }
 } 

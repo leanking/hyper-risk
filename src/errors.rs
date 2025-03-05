@@ -63,4 +63,18 @@ pub enum Error {
     VaultAddressNotFound,
     #[error("Custom error: {0}")]
     Custom(String),
+    #[error("IO error: {0}")]
+    Io(String),
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Error::Io(error.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Error::JsonParse(error.to_string())
+    }
 }

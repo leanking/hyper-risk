@@ -12,7 +12,7 @@ repository = "https://github.com/hyperliquid-dex/hyperliquid-rust-sdk"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.26"
+chrono = { version = "0.4.26", features = ["serde"] }
 env_logger = "0.10.0"
 ethers = {version = "2.0.14", features = ["eip712", "abigen"]}
 futures-util = "0.3.28"
@@ -29,3 +29,13 @@ thiserror = "1.0.44"
 tokio = {version = "1.29.1", features = ["full"]}
 tokio-tungstenite = {version = "0.20.0", features = ["native-tls"]}
 uuid = {version = "1.6.1", features = ["v4"]}
+
+# Web server dependencies
+actix-web = "4.4.0"
+actix-files = "0.6.2"
+actix-cors = "0.6.4"
+
+# Database for storing historical data
+rusqlite = { version = "0.29.0", features = ["bundled"] }
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.22.0"
