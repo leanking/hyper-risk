@@ -1,34 +1,99 @@
 /* Main Styles */
+:root {
+    --primary-color: #007bff;
+    --text-color: #212529;
+    --text-muted-color: #6c757d;
+    --bg-color: #f8f9fa;
+    --card-bg: #ffffff;
+    --card-header-bg: #f8f9fa;
+    --border-color: #dee2e6;
+    --grid-color: rgba(0, 0, 0, 0.05);
+    --hover-bg: rgba(0, 123, 255, 0.05);
+    --navbar-bg: #343a40;
+    --navbar-color: #fff;
+    --input-bg: #ffffff;
+    --summary-card-height: 150px;
+}
+
+[data-theme="dark"] {
+    --primary-color: #0d6efd;
+    --text-color: #e9ecef;
+    --text-muted-color: #adb5bd;
+    --bg-color: #212529;
+    --card-bg: #343a40;
+    --card-header-bg: #2c2c2c;
+    --border-color: #495057;
+    --grid-color: rgba(255, 255, 255, 0.05);
+    --hover-bg: rgba(255, 255, 255, 0.05);
+    --navbar-bg: #1e1e1e;
+    --navbar-color: #e9ecef;
+    --input-bg: #2b3035;
+}
+
 body {
-    background-color: #f8f9fa;
+    background-color: var(--bg-color);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .navbar-brand {
     font-weight: 600;
 }
 
+.navbar-dark {
+    background-color: var(--navbar-bg) !important;
+}
+
+.navbar-dark .navbar-brand,
+.navbar-dark .nav-link {
+    color: var(--navbar-color);
+}
+
 .card {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     margin-bottom: 20px;
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    transition: background-color 0.3s ease;
 }
 
 .card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background-color: var(--card-header-bg);
+    border-bottom: 1px solid var(--border-color);
     font-weight: 600;
+}
+
+.bg-light {
+    background-color: var(--card-bg) !important;
 }
 
 /* Risk Summary Cards */
 .progress {
-    background-color: #e9ecef;
+    background-color: var(--grid-color);
     border-radius: 5px;
 }
 
 .progress-bar {
     border-radius: 5px;
     transition: width 0.6s ease;
+}
+
+/* Ensure summary cards have consistent height */
+.row.mb-4:first-of-type .card-body {
+    min-height: var(--summary-card-height);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* Prevent overflow in summary cards */
+.display-4 {
+    font-size: 2.5rem;
+    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Risk level colors */
@@ -103,7 +168,7 @@ body {
     border-left: 4px solid #dc3545;
     margin-bottom: 10px;
     padding: 10px 15px;
-    background-color: #fff;
+    background-color: var(--card-bg);
     border-radius: 4px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -127,11 +192,16 @@ body {
 /* Table styles */
 .table th {
     font-weight: 600;
-    background-color: #f8f9fa;
+    background-color: var(--card-header-bg);
+}
+
+.table, .table td, .table th {
+    color: var(--text-color);
+    border-color: var(--border-color);
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.05);
+    background-color: var(--hover-bg);
 }
 
 /* Responsive adjustments */
@@ -160,4 +230,286 @@ body {
 
 .fa-spin {
     animation: spin 1s linear infinite;
+}
+
+/* Dark mode toggle switch */
+.theme-switch-wrapper {
+    display: flex;
+    align-items: center;
+    margin-left: 15px;
+}
+
+.theme-switch {
+    display: inline-block;
+    height: 24px;
+    position: relative;
+    width: 48px;
+}
+
+.theme-switch input {
+    display: none;
+}
+
+.slider {
+    background-color: #ccc;
+    bottom: 0;
+    cursor: pointer;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    background-color: white;
+    bottom: 4px;
+    content: "";
+    height: 16px;
+    left: 4px;
+    position: absolute;
+    transition: .4s;
+    width: 16px;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #2196F3;
+}
+
+input:checked + .slider:before {
+    transform: translateX(24px);
+}
+
+.theme-icon {
+    margin-right: 8px;
+    color: var(--navbar-color);
+}
+
+/* Dark mode adjustments for Plotly charts */
+[data-theme="dark"] .js-plotly-plot .plotly .main-svg {
+    background-color: var(--card-bg) !important;
+}
+
+[data-theme="dark"] .js-plotly-plot .plotly .xtick text,
+[data-theme="dark"] .js-plotly-plot .plotly .ytick text,
+[data-theme="dark"] .js-plotly-plot .plotly .gtitle,
+[data-theme="dark"] .js-plotly-plot .plotly .xtitle,
+[data-theme="dark"] .js-plotly-plot .plotly .ytitle {
+    fill: var(--text-color) !important;
+}
+
+/* Dark mode table variants */
+[data-theme="dark"] .table-success {
+    background-color: rgba(40, 167, 69, 0.2);
+}
+
+[data-theme="dark"] .table-warning {
+    background-color: rgba(255, 193, 7, 0.2);
+}
+
+[data-theme="dark"] .table-danger {
+    background-color: rgba(220, 53, 69, 0.2);
+}
+
+/* Form controls in dark mode */
+[data-theme="dark"] .form-select {
+    background-color: var(--card-header-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+/* Card title and text */
+.card-title, .card-body {
+    color: var(--text-color);
+}
+
+/* Text colors */
+h1, h2, h3, h4, h5, h6, p, span, div {
+    color: var(--text-color);
+}
+
+.text-muted {
+    color: var(--text-muted-color) !important;
+}
+
+/* Fix for Bootstrap text colors in dark mode */
+[data-theme="dark"] .text-dark {
+    color: var(--text-color) !important;
+}
+
+/* Ensure text in tables is visible in dark mode */
+[data-theme="dark"] .table {
+    color: var(--text-color);
+}
+
+/* Fix for text in cards */
+[data-theme="dark"] .card-body {
+    color: var(--text-color);
+}
+
+/* Fix for text in alerts and other components */
+[data-theme="dark"] .alert,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .dropdown-menu {
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+/* Dark mode styles for the positions table */
+[data-theme="dark"] #positionsTable {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] #positionsTable thead th {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] #positionsTable tbody tr {
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] #positionsTable tbody tr:nth-of-type(odd) {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] #positionsTable tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Keep text dark in table cells for better readability */
+[data-theme="dark"] #positionsTable tbody td {
+    color: #212529;
+}
+
+/* Ensure positive and negative values are clearly visible */
+[data-theme="dark"] .text-success {
+    color: #4CAF50 !important;
+}
+
+[data-theme="dark"] .text-danger {
+    color: #f44336 !important;
+}
+
+/* Fix for Plotly charts in dark mode */
+[data-theme="dark"] .js-plotly-plot .plotly .main-svg {
+    background-color: transparent !important;
+}
+
+[data-theme="dark"] .js-plotly-plot .plotly .modebar {
+    filter: invert(0.8);
+}
+
+/* Fix for dropdown menus in dark mode */
+[data-theme="dark"] .dropdown-menu {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .dropdown-item {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .dropdown-item:hover,
+[data-theme="dark"] .dropdown-item:focus {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-color);
+}
+
+/* Fix for form controls in dark mode */
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+/* Fix for modal dialogs in dark mode */
+[data-theme="dark"] .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer {
+    border-color: var(--border-color);
+}
+
+/* Fix for tooltips in dark mode */
+[data-theme="dark"] .tooltip-inner {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+/* Fix for popovers in dark mode */
+[data-theme="dark"] .popover {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .popover-header {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .popover-body {
+    color: var(--text-color);
+}
+
+/* Fix for badges in dark mode */
+[data-theme="dark"] .badge {
+    color: var(--text-color);
+}
+
+/* Fix for buttons in dark mode */
+[data-theme="dark"] .btn-outline-secondary {
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-color);
+}
+
+/* Fix for table variants in dark mode */
+[data-theme="dark"] .table-striped > tbody > tr:nth-of-type(odd) > * {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .table-hover > tbody > tr:hover > * {
+    color: var(--text-color);
+}
+
+/* Fix for position-specific styling in the table */
+[data-theme="dark"] .position-row {
+    transition: background-color 0.3s ease;
+}
+
+[data-theme="dark"] .position-row:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Ensure the position select dropdown is visible in dark mode */
+[data-theme="dark"] #positionSelect {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+/* Fix for the refresh button in dark mode */
+[data-theme="dark"] #refreshData {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] #refreshData:hover {
+    color: var(--primary-color);
 } 

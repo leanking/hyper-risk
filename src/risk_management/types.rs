@@ -139,4 +139,5 @@ pub struct RiskSummary {
     pub highest_risk_position: Option<(Position, f64)>,
     pub warning_count: usize,
     pub margin_utilization: f64,
+    pub account_value: f64,
 } 

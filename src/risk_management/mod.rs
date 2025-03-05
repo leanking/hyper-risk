@@ -76,6 +76,7 @@ impl RiskManagementSystem {
                 .map(|p| (p.position.clone(), p.risk_score)),
             warning_count: analysis.warnings.len(),
             margin_utilization: analysis.portfolio_metrics.margin_utilization,
+            account_value: analysis.portfolio_metrics.account_value,
         })
     }
 } 

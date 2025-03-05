@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,6 +33,15 @@
                         <a class="nav-link" href="#" id="refreshData">
                             <i class="fas fa-sync-alt me-1"></i> Refresh Data
                         </a>
+                    </li>
+                    <li class="nav-item">
+                        <div class="theme-switch-wrapper">
+                            <span class="theme-icon"><i class="fas fa-moon"></i></span>
+                            <label class="theme-switch" for="checkbox">
+                                <input type="checkbox" id="checkbox" checked>
+                                <div class="slider"></div>
+                            </label>
+                        </div>
                     </li>
                 </ul>
             </div>
@@ -71,9 +80,9 @@
             <div class="col-md-3">
                 <div class="card bg-light">
                     <div class="card-body">
-                        <h5 class="card-title">Highest Risk Position</h5>
-                        <div class="display-6" id="highestRiskPosition">--</div>
-                        <div class="text-muted" id="highestRiskScore">--</div>
+                        <h5 class="card-title">Total Account Value</h5>
+                        <div class="display-4" id="accountValue">--</div>
+                        <div class="text-muted">Current balance</div>
                     </div>
                 </div>
             </div>
@@ -96,30 +105,7 @@
                         <h5 class="card-title mb-0">PnL Over Time</h5>
                     </div>
                     <div class="card-body">
-                        <div id="pnlChart" style="height: 300px;"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Account Value</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="accountValueChart" style="height: 300px;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">Risk Metrics</h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="riskMetricsChart" style="height: 300px;"></div>
+                        <div id="pnlChart" style="height: 450px;"></div>
                     </div>
                 </div>
             </div>
@@ -132,7 +118,20 @@
                         </select>
                     </div>
                     <div class="card-body">
-                        <div id="positionMetricsChart" style="height: 300px;"></div>
+                        <div id="positionMetricsChart" style="height: 450px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Risk Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="riskMetricsChart" style="height: 300px;"></div>
                     </div>
                 </div>
             </div>
