@@ -1,7 +1,7 @@
 FROM rust:1.81-slim
 
 # Install dependencies
-RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates
+RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates curl
 
 # Set up working directory
 WORKDIR /app
@@ -28,5 +28,20 @@ RUN useradd -m appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Use the PORT environment variable explicitly in the command and specify the binary
-CMD ["sh", "-c", "./target/release/risk_dashboard"] 
+# Create a startup script that includes health check
+RUN echo '#!/bin/sh\n\
+echo "Starting risk dashboard..."\n\
+./target/release/risk_dashboard &\n\
+PID=$!\n\
+echo "Waiting for server to start..."\n\
+sleep 10\n\
+echo "Checking health endpoint..."\n\
+curl -v http://localhost:8080/health\n\
+echo "Checking static files..."\n\
+curl -v http://localhost:8080/\n\
+echo "Server is running with PID $PID"\n\
+wait $PID\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Use the startup script
+CMD ["/app/start.sh"] 

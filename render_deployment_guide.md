@@ -100,7 +100,33 @@ This will build and run your Docker container locally. If it works correctly, yo
        CMD ["sh", "-c", "cargo run --release --bin risk_dashboard"]
        ```
 
-3. **Application crashes immediately after deployment**
+3. **Application runs but doesn't respond to requests**
+   - If the application is running (as indicated by the logs) but doesn't respond when you access the URL, there could be several issues.
+   - Solution:
+     - Update the Dockerfile to include a startup script that checks if the application is responding:
+       ```dockerfile
+       # Create a startup script that includes health check
+       RUN echo '#!/bin/sh\n\
+       echo "Starting risk dashboard..."\n\
+       ./target/release/risk_dashboard &\n\
+       PID=$!\n\
+       echo "Waiting for server to start..."\n\
+       sleep 10\n\
+       echo "Checking health endpoint..."\n\
+       curl -v http://localhost:8080/health\n\
+       echo "Checking static files..."\n\
+       curl -v http://localhost:8080/\n\
+       echo "Server is running with PID $PID"\n\
+       wait $PID\n\
+       ' > /app/start.sh && chmod +x /app/start.sh
+       
+       # Use the startup script
+       CMD ["/app/start.sh"]
+       ```
+     - This will help diagnose if the application is binding correctly and responding to requests.
+     - For more detailed troubleshooting, see the RENDER_DEPLOYMENT_DEBUG.md file.
+
+4. **Application crashes immediately after deployment**
    - Check the Render logs for error messages
    - Ensure all required environment variables are set
    - Verify that the `PORT` and `DASHBOARD_PORT` environment variables are set to 8080
