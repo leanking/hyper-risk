@@ -6,8 +6,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== HyperLiquid Risk Dashboard Render Deployment (Fixed) ===${NC}"
-echo -e "${YELLOW}This script will help you deploy your application to Render using Docker with the fixed configuration.${NC}"
+echo -e "${GREEN}=== HyperLiquid Risk Dashboard Deployment ===${NC}"
+echo -e "${YELLOW}This script will help you deploy your application to Render using Docker.${NC}"
 echo
 
 # Check if git is installed
@@ -22,6 +22,21 @@ if ! git rev-parse --is-inside-work-tree &> /dev/null; then
     exit 1
 fi
 
+# Check for Cargo.lock file and warn about potential issues
+if [ -f "Cargo.lock" ]; then
+    echo -e "${YELLOW}Cargo.lock file detected. This may cause issues during Docker build if it was created with a different version of Rust.${NC}"
+    echo -e "${YELLOW}The project requires Rust 1.81 or newer due to dependency requirements.${NC}"
+    echo -e "Would you like to remove the Cargo.lock file to avoid potential version issues? (y/n)"
+    read -r remove_cargo_lock
+    if [[ "$remove_cargo_lock" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo -e "${YELLOW}Removing Cargo.lock file...${NC}"
+        rm -f Cargo.lock
+        echo -e "${GREEN}Cargo.lock file removed. A new one will be generated during the Docker build.${NC}"
+    else
+        echo -e "${YELLOW}Keeping Cargo.lock file. If you encounter version issues during deployment, try running ./test_docker_fix.sh${NC}"
+    fi
+fi
+
 # Test Docker configuration locally first
 echo -e "${YELLOW}Would you like to test the Docker configuration locally first? (y/n)${NC}"
 read -r test_locally
@@ -34,6 +49,7 @@ if [[ "$test_locally" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     read -r test_success
     if [[ ! "$test_success" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         echo -e "${RED}Please fix any issues with the Docker configuration before deploying to Render.${NC}"
+        echo -e "${YELLOW}If you encountered a Cargo.lock version error, try running ./test_docker_fix.sh${NC}"
         exit 1
     fi
 fi
@@ -55,10 +71,16 @@ if ! git diff-index --quiet HEAD --; then
 fi
 
 # Push changes to the repository
-echo -e "${YELLOW}Pushing changes to the repository...${NC}"
-git push
+echo -e "${YELLOW}Would you like to push changes to the repository? (y/n)${NC}"
+read -r push_changes
+if [[ "$push_changes" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo -e "${YELLOW}Pushing changes to the repository...${NC}"
+    git push
+    echo -e "${GREEN}Changes pushed to the repository.${NC}"
+else
+    echo -e "${YELLOW}Skipping push to repository.${NC}"
+fi
 
-echo -e "${GREEN}Changes pushed to the repository.${NC}"
 echo
 echo -e "${YELLOW}Next steps for Docker deployment on Render:${NC}"
 echo

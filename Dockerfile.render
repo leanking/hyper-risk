@@ -1,4 +1,4 @@
-FROM rust:1.76-slim
+FROM rust:1.81-slim
 
 # Install dependencies
 RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates
@@ -6,11 +6,14 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates
 # Set up working directory
 WORKDIR /app
 
-# Copy the entire project
+# Copy the project files
 COPY . .
 
-# Generate Cargo.lock if it doesn't exist
-RUN if [ ! -f Cargo.lock ]; then cargo generate-lockfile; fi
+# Remove the existing Cargo.lock file
+RUN rm -f Cargo.lock
+
+# Generate a fresh Cargo.lock file with the current Rust version
+RUN cargo generate-lockfile
 
 # Build the application
 RUN cargo build --release

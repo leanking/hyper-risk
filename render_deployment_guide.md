@@ -77,7 +77,17 @@ This will build and run your Docker container locally. If it works correctly, yo
 
 ### Common Issues
 
-1. **Application crashes immediately after deployment**
+1. **Cargo.lock Version Error and Rust Version Requirements**
+   - If you see an error like `lock file version 4 was found, but this version of Cargo does not understand this lock file`, it means your Cargo.lock was created with a newer version of Rust than what's in the Docker image.
+   - You may also see errors like `package 'parity-scale-codec v3.7.4' cannot be built because it requires rustc 1.79.0 or newer` or `litemap@0.7.5 requires rustc 1.81`.
+   - Solution: 
+     - The Dockerfile.render has been updated to use Rust 1.81 and regenerate the lock file during the build process.
+     - If you still encounter this issue, try these steps:
+       1. Remove the Cargo.lock file from your project: `rm Cargo.lock`
+       2. Run the test script: `./test_docker_fix.sh`
+       3. If successful, commit and push the changes without the Cargo.lock file
+
+2. **Application crashes immediately after deployment**
    - Check the Render logs for error messages
    - Ensure all required environment variables are set
    - Verify that the `PORT` and `DASHBOARD_PORT` environment variables are set to 8080
