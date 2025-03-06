@@ -437,4 +437,20 @@ impl DataLogger {
         
         Ok(time_series)
     }
+    
+    /// Logs risk analysis data
+    pub async fn log_risk_data(&self, analysis: &crate::risk_management::RiskAnalysisResult) -> Result<()> {
+        if !self.config.enable_logging {
+            return Ok(());
+        }
+        
+        // Extract data from the risk analysis
+        let positions = &analysis.positions;
+        let portfolio_metrics = &analysis.portfolio_metrics;
+        let position_metrics = &analysis.position_metrics;
+        let warnings = &analysis.warnings;
+        
+        // Use the existing log_metrics method
+        self.log_metrics(positions, portfolio_metrics, position_metrics, warnings)
+    }
 } 

@@ -5,13 +5,11 @@ use actix_cors::Cors;
 use actix_files as fs;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder, Result, middleware};
 use log::{info, error};
-use serde_json::json;
+use serde_json::{json, Value};
 use tokio::time;
-use actix_web::http;
 use actix_web::http::header;
 use actix_governor::{Governor, GovernorConfigBuilder};
 use tokio::sync::Semaphore;
-use futures::future::join_all;
 
 use hyperliquid_rust_sdk::risk_management::{
     RiskManagementSystem, RiskConfig, DataLogger
@@ -45,42 +43,46 @@ where
 
 // API endpoint to get the latest risk analysis
 async fn get_risk_analysis(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    // Use a timeout to prevent long-running operations
-    let timeout_duration = Duration::from_secs(5);
+    // Clone the Arc to avoid borrowing issues
+    let data_clone = data.clone();
     
-    let result = tokio::time::timeout(
-        timeout_duration,
-        run_intensive_task(&data.intensive_ops_semaphore, move || {
-            let mut risk_system = data.risk_system.lock().unwrap();
-            match futures::executor::block_on(risk_system.analyze_risk_profile()) {
-                Ok(analysis) => {
-                    Ok(json!({
+    match run_intensive_task(&data.intensive_ops_semaphore, move || {
+        let mut risk_system = data_clone.risk_system.lock().unwrap();
+        
+        match futures::executor::block_on(risk_system.analyze_risk_profile()) {
+            Ok(analysis) => {
+                // Convert to JSON response
+                let json_response = json!({
+                    "success": true,
+                    "data": {
                         "positions": analysis.positions,
                         "portfolio_metrics": analysis.portfolio_metrics,
                         "position_metrics": analysis.position_metrics,
-                        "warnings": analysis.warnings,
-                    }))
-                },
-                Err(e) => {
-                    error!("Failed to get risk analysis: {}", e);
-                    Err(format!("Failed to get risk analysis: {}", e))
-                }
+                        "warnings": analysis.warnings
+                    }
+                });
+                Ok::<Value, String>(json_response)
+            },
+            Err(e) => {
+                let error_message = format!("Failed to analyze risk profile: {}", e);
+                error!("{}", error_message);
+                
+                let json_response = json!({
+                    "success": false,
+                    "error": error_message
+                });
+                Ok::<Value, String>(json_response)
             }
-        })
-    ).await;
-    
-    match result {
-        Ok(Ok(response)) => Ok(HttpResponse::Ok().json(response)),
-        Ok(Err(e)) => {
-            error!("Failed to get risk analysis: {}", e);
+        }
+    }).await {
+        Ok(json_data) => Ok(HttpResponse::Ok().json(json_data)),
+        Err(e) => {
+            let error_message = format!("Error processing request: {}", e);
+            error!("{}", error_message);
+            
             Ok(HttpResponse::InternalServerError().json(json!({
-                "error": e
-            })))
-        },
-        Err(_) => {
-            error!("Risk analysis operation timed out");
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Operation timed out. Please try again later."
+                "success": false,
+                "error": error_message
             })))
         }
     }
@@ -216,51 +218,47 @@ async fn get_positions(data: web::Data<Arc<AppState>>) -> Result<impl Responder>
 
 // API endpoint to get a summary of the current risk status
 async fn get_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    // Use a timeout to prevent long-running operations
-    let timeout_duration = Duration::from_secs(3);
+    // Clone the Arc to avoid borrowing issues
+    let data_clone = data.clone();
     
-    let result = tokio::time::timeout(
-        timeout_duration,
-        run_intensive_task(&data.intensive_ops_semaphore, move || {
-            let mut risk_system = data.risk_system.lock().unwrap();
-            
-            match futures::executor::block_on(risk_system.get_risk_summary()) {
-                Ok(summary) => {
-                    let highest_risk = summary.highest_risk_position.clone().map(|(pos, score)| {
-                        json!({
-                            "coin": pos.coin,
-                            "risk_score": score
-                        })
-                    });
-                    
-                    Ok(json!({
+    match run_intensive_task(&data.intensive_ops_semaphore, move || {
+        let mut risk_system = data_clone.risk_system.lock().unwrap();
+        
+        match futures::executor::block_on(risk_system.get_risk_summary()) {
+            Ok(summary) => {
+                // Convert to JSON response
+                let json_response = json!({
+                    "success": true,
+                    "data": {
                         "portfolio_heat": summary.portfolio_heat,
-                        "highest_risk_position": highest_risk,
+                        "highest_risk_position": summary.highest_risk_position,
                         "warning_count": summary.warning_count,
                         "margin_utilization": summary.margin_utilization,
                         "account_value": summary.account_value
-                    }))
-                },
-                Err(e) => {
-                    error!("Failed to get risk summary: {}", e);
-                    Err(format!("Failed to get risk summary: {}", e))
-                }
+                    }
+                });
+                Ok::<Value, String>(json_response)
+            },
+            Err(e) => {
+                let error_message = format!("Failed to get risk summary: {}", e);
+                error!("{}", error_message);
+                
+                let json_response = json!({
+                    "success": false,
+                    "error": error_message
+                });
+                Ok::<Value, String>(json_response)
             }
-        })
-    ).await;
-    
-    match result {
-        Ok(Ok(response)) => Ok(HttpResponse::Ok().json(response)),
-        Ok(Err(e)) => {
-            error!("Failed to get risk summary: {}", e);
+        }
+    }).await {
+        Ok(json_data) => Ok(HttpResponse::Ok().json(json_data)),
+        Err(e) => {
+            let error_message = format!("Error processing request: {}", e);
+            error!("{}", error_message);
+            
             Ok(HttpResponse::InternalServerError().json(json!({
-                "error": e
-            })))
-        },
-        Err(_) => {
-            error!("Risk summary operation timed out");
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Operation timed out. Please try again later."
+                "success": false,
+                "error": error_message
             })))
         }
     }
@@ -442,49 +440,47 @@ async fn main() -> std::io::Result<()> {
     
     // Start background task to update risk analysis
     let app_state_clone = app_state.clone();
-    let interval_seconds = config.log_interval_seconds;
+    let update_interval = config.log_interval_seconds;
     
     // Use a separate thread for the background task
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut interval = time::interval(Duration::from_secs(interval_seconds));
+    tokio::spawn(async move {
+        loop {
+            // Sleep for the configured interval
+            time::sleep(Duration::from_secs(update_interval)).await;
             
-            loop {
-                interval.tick().await;
+            // Clone the Arc for the semaphore
+            let app_state_semaphore = app_state_clone.clone();
+            
+            // Create a separate clone for the closure to avoid borrowing issues
+            let app_state_for_closure = app_state_clone.clone();
+            
+            // Use the cloned state for the semaphore as well
+            match run_intensive_task(&app_state_semaphore.intensive_ops_semaphore, move || {
+                // Get a lock on the risk system
+                let mut risk_system = app_state_for_closure.risk_system.lock().unwrap();
                 
-                // Use a timeout for the background task
-                let timeout_result = tokio::time::timeout(
-                    Duration::from_secs(30), // 30 second timeout
-                    run_intensive_task(&app_state_clone.intensive_ops_semaphore, move || {
-                        // Get a lock on the risk system
-                        let mut risk_system = app_state_clone.risk_system.lock().unwrap();
+                // Perform risk analysis
+                match futures::executor::block_on(risk_system.analyze_risk_profile()) {
+                    Ok(analysis) => {
+                        info!("Updated risk analysis");
                         
-                        // Perform risk analysis
-                        match futures::executor::block_on(risk_system.analyze_risk_profile()) {
-                            Ok(analysis) => {
-                                info!("Updated risk analysis");
-                                
-                                // Log the analysis if configured to do so
-                                if let Err(e) = futures::executor::block_on(app_state_clone.data_logger.log_risk_data(&analysis)) {
-                                    error!("Failed to log risk data: {}", e);
-                                }
-                                
-                                Ok(())
-                            },
-                            Err(e) => {
-                                error!("Failed to update risk analysis: {}", e);
-                                Err(())
-                            }
+                        // Log the analysis if configured to do so
+                        if let Err(e) = futures::executor::block_on(app_state_for_closure.data_logger.log_risk_data(&analysis)) {
+                            error!("Failed to log risk data: {}", e);
                         }
-                    })
-                ).await;
-                
-                if let Err(_) = timeout_result {
-                    error!("Background risk analysis task timed out");
+                        
+                        Ok::<(), String>(())
+                    },
+                    Err(e) => {
+                        error!("Failed to update risk analysis: {}", e);
+                        Err::<(), String>(format!("Analysis error: {}", e))
+                    }
                 }
+            }).await {
+                Ok(_) => info!("Background risk analysis completed successfully"),
+                Err(e) => error!("Background risk analysis failed: {}", e)
             }
-        });
+        }
     });
     
     // Start the HTTP server with optimized settings

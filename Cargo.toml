@@ -16,6 +16,7 @@ default-run = "risk_dashboard"
 chrono = { version = "0.4.26", features = ["serde"] }
 env_logger = "0.10.0"
 ethers = {version = "2.0.14", features = ["eip712", "abigen"]}
+futures = "0.3.28"
 futures-util = "0.3.28"
 hex = "0.4.3"
 http = "0.2.9"

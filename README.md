@@ -140,6 +140,7 @@ For detailed documentation, see the following files in the `docs` directory:
 - [Deployment Guide](docs/render_deployment_guide.md): Guide for deploying to Render
 - [API Response Fix](docs/API_RESPONSE_FIX.md): Troubleshooting API response issues
 - [Cargo Lock Fix](docs/CARGO_LOCK_FIX.md): Fixing Cargo.lock version issues
+- [Dependency Fix](docs/DEPENDENCY_FIX.md): Resolving dependency issues for Render deployment
 
 ## Project Structure
 
