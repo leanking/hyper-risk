@@ -6,10 +6,27 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates
 # Set up working directory
 WORKDIR /app
 
-# Copy the entire project
-COPY . .
+# First copy only the Cargo.toml file
+COPY Cargo.toml .
 
-# Build the application
+# Create an empty Cargo.lock file if it doesn't exist
+RUN touch Cargo.lock
+
+# Create a dummy src directory and main.rs file
+RUN mkdir -p src && echo 'fn main() { println!("Dummy"); }' > src/main.rs
+
+# Build the dependencies (this will be cached)
+RUN cargo build --release
+
+# Remove the dummy files
+RUN rm -rf src
+
+# Now copy the real source code
+COPY src ./src
+COPY dashboard ./dashboard
+COPY Cargo.lock ./Cargo.lock
+
+# Build the application for real
 RUN cargo build --release
 
 # Set the startup command
