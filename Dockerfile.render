@@ -1,0 +1,23 @@
+FROM rust:1.76-slim
+
+# Install dependencies
+RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates
+
+# Set up working directory
+WORKDIR /app
+
+# Copy the entire project
+COPY . .
+
+# Build the application
+RUN cargo build --release
+
+# Set the startup command
+ENV PORT=8080
+EXPOSE 8080
+
+# Run as non-root user for better security
+RUN useradd -m appuser
+USER appuser
+
+CMD ["./target/release/risk_dashboard"] 

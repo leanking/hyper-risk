@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: starter # Options: free, starter, standard, pro, plus
     region: oregon # Options: oregon, ohio, frankfurt, singapore
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.render
     healthCheckPath: /health
     autoDeploy: true
     numInstances: 1
