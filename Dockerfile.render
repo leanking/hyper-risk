@@ -9,15 +9,21 @@ WORKDIR /app
 # Copy the entire project
 COPY . .
 
+# Generate Cargo.lock if it doesn't exist
+RUN if [ ! -f Cargo.lock ]; then cargo generate-lockfile; fi
+
 # Build the application
 RUN cargo build --release
 
 # Set the startup command
 ENV PORT=8080
+ENV DASHBOARD_PORT=8080
 EXPOSE 8080
 
 # Run as non-root user for better security
 RUN useradd -m appuser
+RUN chown -R appuser:appuser /app
 USER appuser
 
-CMD ["./target/release/risk_dashboard"] 
+# Use the PORT environment variable explicitly in the command
+CMD ["sh", "-c", "./target/release/risk_dashboard"] 

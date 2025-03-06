@@ -7,21 +7,22 @@ services:
     plan: free
     branch: main
     numInstances: 1
-    healthCheckPath: /api/health
-    envVars:
-      - key: PORT
-        value: 8080
-      - key: WALLET_ADDRESS
-        sync: false
-      - key: RUST_LOG
-        value: info
+    healthCheckPath: /health
     autoDeploy: true
     domains:
       - risk-dashboard.example.com # Replace with your custom domain if needed
     envVars:
       # Required Variables
+      - key: PORT
+        value: "8080"
+      - key: DASHBOARD_PORT
+        value: "8080"
       - key: WALLET_ADDRESS
         sync: false # This will prompt for the value during deployment
+      - key: RUST_LOG
+        value: info
+      - key: RENDER
+        value: "true"
       
       # Optional Variables with Defaults
       - key: API_URL
@@ -32,14 +33,12 @@ services:
         value: "false"
       - key: LOG_INTERVAL_SECONDS
         value: "60"
-      - key: DASHBOARD_PORT
-        value: "8080"
       - key: RATE_LIMIT_REQUESTS_PER_MINUTE
-        value: "60"
+        value: "300"
       - key: RATE_LIMIT_STATIC_PER_MINUTE
-        value: "120"
+        value: "600"
       - key: RATE_LIMIT_SETTINGS_PER_MINUTE
-        value: "20"
+        value: "100"
       
       # Risk Limit Variables
       - key: MAX_POSITION_SIZE_USD
@@ -71,13 +70,13 @@ services:
     #   targetCPUPercent: 60
 
     # Custom HTTP headers (uncomment if needed)
-    # headers:
-    #   - path: /*
-    #     name: X-Frame-Options
-    #     value: DENY
-    #   - path: /*
-    #     name: X-Content-Type-Options
-    #     value: nosniff
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
 
 # Uncomment if you want to add a database service
 # databases:
