@@ -28,5 +28,5 @@ RUN useradd -m appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Use the PORT environment variable explicitly in the command
+# Use the PORT environment variable explicitly in the command and specify the binary
 CMD ["sh", "-c", "./target/release/risk_dashboard"] 

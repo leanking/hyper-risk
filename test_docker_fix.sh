@@ -80,6 +80,12 @@ else
         echo -e "Some dependencies require a newer version of Rust than what's in the Dockerfile."
         echo -e "The Dockerfile has been updated to use Rust 1.81, which should satisfy all dependencies."
         echo -e "If you're still seeing this error, check if any dependencies require an even newer version."
+    elif docker logs $(docker ps -lq) 2>&1 | grep -q "could not determine which binary to run"; then
+        echo -e "${RED}Binary selection error detected.${NC}"
+        echo -e "The Docker container doesn't know which binary to run because the project has multiple binaries."
+        echo -e "To fix this, update your Dockerfile.render to explicitly specify the binary:"
+        echo -e "${YELLOW}CMD [\"sh\", \"-c\", \"./target/release/risk_dashboard\"]${NC}"
+        echo -e "Or add 'default-run = \"risk_dashboard\"' to the [package] section in Cargo.toml."
     fi
     
     exit 1

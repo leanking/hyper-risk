@@ -97,7 +97,10 @@ echo -e "7. Wait for the deployment to complete (this may take 5-10 minutes)"
 echo
 echo -e "${YELLOW}After deployment:${NC}"
 echo -e "1. Check the Render logs for any errors"
-echo -e "2. Run the test script to check if your API endpoints are accessible:"
+echo -e "2. If you see an error about 'cargo run could not determine which binary to run', make sure your"
+echo -e "   Dockerfile.render is correctly configured to run the risk_dashboard binary:"
+echo -e "   ${GREEN}CMD [\"sh\", \"-c\", \"./target/release/risk_dashboard\"]${NC}"
+echo -e "3. Run the test script to check if your API endpoints are accessible:"
 echo -e "   ${GREEN}./test_api.sh https://hyper-risk.onrender.com${NC}"
 echo -e "   (Replace with your actual Render URL)"
 echo

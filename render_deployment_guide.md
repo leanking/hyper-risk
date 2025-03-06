@@ -87,7 +87,20 @@ This will build and run your Docker container locally. If it works correctly, yo
        2. Run the test script: `./test_docker_fix.sh`
        3. If successful, commit and push the changes without the Cargo.lock file
 
-2. **Application crashes immediately after deployment**
+2. **Binary selection error during deployment**
+   - If you see an error like `cargo run could not determine which binary to run. Use the --bin option to specify a binary`, it means Render doesn't know which binary to execute.
+   - This happens because the project contains multiple binaries.
+   - Solution:
+     - Make sure your Dockerfile.render explicitly specifies the binary to run:
+       ```
+       CMD ["sh", "-c", "./target/release/risk_dashboard"]
+       ```
+     - Alternatively, you can modify the CMD to use the --bin option:
+       ```
+       CMD ["sh", "-c", "cargo run --release --bin risk_dashboard"]
+       ```
+
+3. **Application crashes immediately after deployment**
    - Check the Render logs for error messages
    - Ensure all required environment variables are set
    - Verify that the `PORT` and `DASHBOARD_PORT` environment variables are set to 8080
