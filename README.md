@@ -133,7 +133,31 @@ cargo test
 
 ## Documentation
 
-For full documentation, see the SDK code and examples.
+For detailed documentation, see the following files in the `docs` directory:
+
+- [Usage Guide](docs/usage.md): Detailed usage instructions
+- [Performance Optimizations](docs/PERFORMANCE_OPTIMIZATIONS.md): Performance optimization strategies
+- [Deployment Guide](docs/render_deployment_guide.md): Guide for deploying to Render
+- [API Response Fix](docs/API_RESPONSE_FIX.md): Troubleshooting API response issues
+- [Cargo Lock Fix](docs/CARGO_LOCK_FIX.md): Fixing Cargo.lock version issues
+
+## Project Structure
+
+```
+.
+├── Cargo.toml              # Rust package configuration
+├── README.md               # Main documentation
+├── Dockerfile.render       # Docker configuration for Render
+├── render.docker.yaml      # Render deployment configuration
+├── deploy.sh               # Deployment script
+├── docker_debug.sh         # Docker debugging script
+├── test_docker_fix.sh      # Test script for Docker fixes
+├── check_app_response.sh   # Script to check application responses
+├── docs/                   # Documentation directory
+├── src/                    # Source code
+├── dashboard/              # Dashboard frontend files
+└── target/                 # Build artifacts (not in version control)
+```
 
 ## Usage Examples
 
