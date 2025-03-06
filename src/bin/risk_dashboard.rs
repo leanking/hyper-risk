@@ -10,90 +10,36 @@ use tokio::time;
 use actix_web::http;
 use actix_web::http::header;
 use actix_governor::{Governor, GovernorConfigBuilder};
-use std::sync::RwLock;
-use std::time::{Duration, Instant};
-use tokio::sync::oneshot;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use parking_lot::RwLock as PLRwLock;
 
 use hyperliquid_rust_sdk::risk_management::{
     RiskManagementSystem, RiskConfig, DataLogger
 };
 
-// Cache structure for risk data
-struct RiskCache {
-    last_update: Instant,
-    risk_summary: Option<serde_json::Value>,
-    risk_analysis: Option<serde_json::Value>,
-    cache_duration: Duration,
-}
-
-impl RiskCache {
-    fn new(cache_duration_secs: u64) -> Self {
-        Self {
-            last_update: Instant::now(),
-            risk_summary: None,
-            risk_analysis: None,
-            cache_duration: Duration::from_secs(cache_duration_secs),
-        }
-    }
-
-    fn is_fresh(&self) -> bool {
-        self.last_update.elapsed() < self.cache_duration
-    }
-}
-
 // Shared state between threads
 struct AppState {
-    risk_system: PLRwLock<RiskManagementSystem>,
+    risk_system: Mutex<RiskManagementSystem>,
     data_logger: DataLogger,
-    cache: PLRwLock<RiskCache>,
-    is_updating: AtomicBool,
 }
 
-// API endpoint to get the latest risk analysis with caching
+// API endpoint to get the latest risk analysis
 async fn get_risk_analysis(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    // Try to get cached data first
-    {
-        let cache = data.cache.read();
-        if cache.is_fresh() {
-            if let Some(cached_analysis) = &cache.risk_analysis {
-                return Ok(HttpResponse::Ok().json(cached_analysis));
-            }
-        }
-    }
+    let mut risk_system = data.risk_system.lock().unwrap();
     
-    // If no fresh cache, get new data
-    match data.risk_system.try_read_for(Duration::from_secs(5)) {
-        Some(risk_system) => {
-            match risk_system.analyze_risk_profile().await {
-                Ok(analysis) => {
-                    let response = json!({
-                        "positions": analysis.positions,
-                        "portfolio_metrics": analysis.portfolio_metrics,
-                        "position_metrics": analysis.position_metrics,
-                        "warnings": analysis.warnings,
-                    });
-                    
-                    // Update cache
-                    let mut cache = data.cache.write();
-                    cache.risk_analysis = Some(response.clone());
-                    cache.last_update = Instant::now();
-                    
-                    Ok(HttpResponse::Ok().json(response))
-                },
-                Err(e) => {
-                    error!("Failed to get risk analysis: {}", e);
-                    Ok(HttpResponse::InternalServerError().json(json!({
-                        "error": format!("Failed to get risk analysis: {}", e)
-                    })))
-                }
-            }
+    match risk_system.analyze_risk_profile().await {
+        Ok(analysis) => {
+            let response = json!({
+                "positions": analysis.positions,
+                "portfolio_metrics": analysis.portfolio_metrics,
+                "position_metrics": analysis.position_metrics,
+                "warnings": analysis.warnings,
+            });
+            
+            Ok(HttpResponse::Ok().json(response))
         },
-        None => {
-            Ok(HttpResponse::ServiceUnavailable().json(json!({
-                "error": "Service is temporarily busy. Please try again."
+        Err(e) => {
+            error!("Failed to get risk analysis: {}", e);
+            Ok(HttpResponse::InternalServerError().json(json!({
+                "error": format!("Failed to get risk analysis: {}", e)
             })))
         }
     }
@@ -326,61 +272,12 @@ async fn debug_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Respo
     }
 }
 
-// Background task to update risk analysis
-async fn update_risk_analysis(app_state: Arc<AppState>) {
-    let mut interval = time::interval(Duration::from_secs(app_state.config.log_interval_seconds));
-    
-    loop {
-        interval.tick().await;
-        
-        // Check if another update is in progress
-        if app_state.is_updating.compare_exchange(
-            false, true, Ordering::SeqCst, Ordering::SeqCst
-        ).is_err() {
-            continue; // Skip this update if another one is in progress
-        }
-        
-        // Get a write lock with timeout
-        if let Some(mut risk_system) = app_state.risk_system.try_write_for(Duration::from_secs(5)) {
-            match risk_system.analyze_risk_profile().await {
-                Ok(analysis) => {
-                    // Update cache
-                    let mut cache = app_state.cache.write();
-                    cache.risk_analysis = Some(json!({
-                        "positions": analysis.positions,
-                        "portfolio_metrics": analysis.portfolio_metrics,
-                        "position_metrics": analysis.position_metrics,
-                        "warnings": analysis.warnings,
-                    }));
-                    cache.last_update = Instant::now();
-                    info!("Updated risk analysis cache");
-                },
-                Err(e) => {
-                    error!("Failed to update risk analysis: {}", e);
-                }
-            }
-        }
-        
-        // Reset the update flag
-        app_state.is_updating.store(false, Ordering::SeqCst);
-    }
-}
-
-// Health check endpoint with improved responsiveness
-async fn health_check(data: web::Data<Arc<AppState>>) -> impl Responder {
-    // Quick check if we can acquire a read lock
-    if data.risk_system.try_read_for(Duration::from_millis(100)).is_some() {
-        HttpResponse::Ok().json(json!({
-            "status": "ok",
-            "message": "Service is healthy",
-            "cache_status": data.cache.read().is_fresh()
-        }))
-    } else {
-        HttpResponse::ServiceUnavailable().json(json!({
-            "status": "busy",
-            "message": "Service is temporarily busy"
-        }))
-    }
+// Health check endpoint for Render
+async fn health_check() -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "status": "ok",
+        "message": "Service is healthy"
+    }))
 }
 
 #[actix_web::main]
@@ -474,18 +371,39 @@ async fn main() -> std::io::Result<()> {
     // Create data logger
     let data_logger = DataLogger::new(config.clone());
     
-    // Create shared state with RwLock and cache
+    // Create shared state
     let app_state = Arc::new(AppState {
-        risk_system: PLRwLock::new(risk_system),
+        risk_system: Mutex::new(risk_system),
         data_logger,
-        cache: PLRwLock::new(RiskCache::new(30)), // 30-second cache
-        is_updating: AtomicBool::new(false),
     });
     
-    // Start background task with the new update function
+    // Start background task to update risk analysis
     let app_state_clone = app_state.clone();
-    tokio::spawn(async move {
-        update_risk_analysis(app_state_clone).await;
+    let interval_seconds = config.log_interval_seconds;
+    
+    // Use a separate thread for the background task
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let mut interval = time::interval(Duration::from_secs(interval_seconds));
+            
+            loop {
+                interval.tick().await;
+                
+                // Get a lock on the risk system
+                let mut risk_system = app_state_clone.risk_system.lock().unwrap();
+                
+                // Perform risk analysis
+                match risk_system.analyze_risk_profile().await {
+                    Ok(_) => {
+                        info!("Updated risk analysis");
+                    },
+                    Err(e) => {
+                        error!("Failed to update risk analysis: {}", e);
+                    }
+                }
+            }
+        });
     });
     
     // Start the HTTP server
