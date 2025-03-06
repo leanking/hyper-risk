@@ -1,7 +1,7 @@
 FROM rust:1.81-slim
 
 # Install dependencies
-RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates curl
+RUN apt-get update && apt-get install -y pkg-config libssl-dev ca-certificates curl jq
 
 # Set up working directory
 WORKDIR /app
@@ -21,6 +21,9 @@ RUN cargo build --release
 # Set the startup command
 ENV PORT=8080
 ENV DASHBOARD_PORT=8080
+ENV RUST_LOG=info
+ENV RENDER=true
+# Note: WALLET_ADDRESS must be provided during deployment
 EXPOSE 8080
 
 # Run as non-root user for better security
@@ -28,18 +31,150 @@ RUN useradd -m appuser
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Create a startup script that includes health check
+# Create a startup script that includes health check and better error handling
 RUN echo '#!/bin/sh\n\
 echo "Starting risk dashboard..."\n\
-./target/release/risk_dashboard &\n\
+\n\
+# Check if WALLET_ADDRESS is set\n\
+if [ -z "$WALLET_ADDRESS" ]; then\n\
+    echo "ERROR: WALLET_ADDRESS environment variable is not set!"\n\
+    echo "Please set WALLET_ADDRESS to your HyperLiquid wallet address."\n\
+    exit 1\n\
+fi\n\
+\n\
+echo "Environment variables:"\n\
+echo "PORT=$PORT"\n\
+echo "DASHBOARD_PORT=$DASHBOARD_PORT"\n\
+echo "WALLET_ADDRESS=${WALLET_ADDRESS:0:6}...${WALLET_ADDRESS: -4}" # Show only part of the address for security\n\
+echo "RUST_LOG=$RUST_LOG"\n\
+echo "RENDER=$RENDER"\n\
+echo "API_URL=$API_URL"\n\
+\n\
+# Test HyperLiquid API connectivity directly\n\
+echo "Testing HyperLiquid API connectivity..."\n\
+API_URL=${API_URL:-"https://api.hyperliquid.xyz"}\n\
+\n\
+# Test basic API connectivity - IMPORTANT: HyperLiquid API requires POST requests\n\
+echo "1. Testing basic API connectivity..."\n\
+INFO_RESPONSE=$(curl -s -X POST "$API_URL/info" -H "Content-Type: application/json" -d "{}")\n\
+if [ -z "$INFO_RESPONSE" ]; then\n\
+    echo "WARNING: Could not connect to HyperLiquid API at $API_URL"\n\
+    echo "The application may not function correctly."\n\
+else\n\
+    echo "Successfully connected to HyperLiquid API at $API_URL"\n\
+    echo "Response (first 100 chars):"\n\
+    echo "$INFO_RESPONSE" | head -c 100\n\
+    echo "..."\n\
+fi\n\
+\n\
+# Test user-specific API endpoint\n\
+echo "2. Testing user-specific API endpoint..."\n\
+USER_DATA=$(curl -s -X POST "$API_URL/exchange" -H "Content-Type: application/json" -d "{\"type\":\"clearinghouseState\",\"user\":\"$WALLET_ADDRESS\"}")\n\
+\n\
+if echo "$USER_DATA" | grep -q "error"; then\n\
+    echo "WARNING: Could not connect to HyperLiquid API with the provided wallet address"\n\
+    echo "Response:"\n\
+    echo "$USER_DATA"\n\
+    echo "The application may not function correctly."\n\
+else\n\
+    echo "Successfully connected to HyperLiquid API with the provided wallet address"\n\
+    echo "Response (first 100 chars):"\n\
+    echo "$USER_DATA" | head -c 100\n\
+    echo "..."\n\
+fi\n\
+\n\
+# Test market data API endpoint\n\
+echo "3. Testing market data API endpoint..."\n\
+MARKET_DATA=$(curl -s -X POST "$API_URL/exchange" -H "Content-Type: application/json" -d "{\"type\":\"allMids\"}")\n\
+if [ -z "$MARKET_DATA" ] || echo "$MARKET_DATA" | grep -q "error"; then\n\
+    echo "WARNING: Could not fetch market data from HyperLiquid API"\n\
+    echo "Response:"\n\
+    echo "$MARKET_DATA"\n\
+    echo "The application may not function correctly."\n\
+else\n\
+    echo "Successfully fetched market data from HyperLiquid API"\n\
+    echo "Response (first 100 chars):"\n\
+    echo "$MARKET_DATA" | head -c 100\n\
+    echo "..."\n\
+fi\n\
+\n\
+# Check if dashboard/static directory exists\n\
+if [ ! -d "dashboard/static" ]; then\n\
+    echo "ERROR: dashboard/static directory not found!"\n\
+    echo "Current directory: $(pwd)"\n\
+    echo "Directory contents:"\n\
+    ls -la\n\
+    echo "dashboard directory contents:"\n\
+    ls -la dashboard || echo "dashboard directory not found"\n\
+    exit 1\n\
+fi\n\
+\n\
+# Start the application\n\
+echo "Starting application with RUST_BACKTRACE=1 for better error reporting..."\n\
+RUST_BACKTRACE=1 ./target/release/risk_dashboard &\n\
 PID=$!\n\
+\n\
+# Wait for the server to start\n\
 echo "Waiting for server to start..."\n\
 sleep 10\n\
-echo "Checking health endpoint..."\n\
-curl -v http://localhost:8080/health\n\
-echo "Checking static files..."\n\
-curl -v http://localhost:8080/\n\
+\n\
+# Check if the process is still running\n\
+if ! ps -p $PID > /dev/null; then\n\
+    echo "ERROR: Application crashed during startup!"\n\
+    echo "Check the logs above for error messages."\n\
+    exit 1\n\
+fi\n\
+\n\
+# Check API endpoints\n\
+echo "Checking API endpoints..."\n\
+\n\
+echo "1. Testing /health endpoint:"\n\
+HEALTH_RESPONSE=$(curl -s http://localhost:8080/health)\n\
+if echo "$HEALTH_RESPONSE" | grep -q "<!DOCTYPE"; then\n\
+    echo "WARNING: /health endpoint returned HTML instead of JSON"\n\
+else\n\
+    echo "Response from /health:"\n\
+    echo "$HEALTH_RESPONSE"\n\
+fi\n\
+\n\
+echo "2. Testing /api/risk_summary:"\n\
+RISK_SUMMARY=$(curl -s http://localhost:8080/api/risk_summary)\n\
+if echo "$RISK_SUMMARY" | grep -q "<!DOCTYPE"; then\n\
+    echo "WARNING: /api/risk_summary returned HTML instead of JSON"\n\
+    echo "This indicates an API connection issue"\n\
+else\n\
+    echo "Response from /api/risk_summary (first 100 chars):"\n\
+    echo "$RISK_SUMMARY" | head -c 100\n\
+    echo "..."\n\
+fi\n\
+\n\
+echo "3. Testing /api/positions:"\n\
+POSITIONS=$(curl -s http://localhost:8080/api/positions)\n\
+if echo "$POSITIONS" | grep -q "<!DOCTYPE"; then\n\
+    echo "WARNING: /api/positions returned HTML instead of JSON"\n\
+    echo "This indicates an API connection issue"\n\
+else\n\
+    echo "Response from /api/positions (first 100 chars):"\n\
+    echo "$POSITIONS" | head -c 100\n\
+    echo "..."\n\
+fi\n\
+\n\
+echo "4. Testing static files:"\n\
+STATIC_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/)\n\
+if [ "$STATIC_RESPONSE" = "200" ]; then\n\
+    echo "Static files are being served (200 OK)"\n\
+else\n\
+    echo "WARNING: Static files endpoint returned $STATIC_RESPONSE instead of 200"\n\
+    echo "Detailed response:"\n\
+    curl -v http://localhost:8080/\n\
+fi\n\
+\n\
 echo "Server is running with PID $PID"\n\
+echo "If you encounter API errors in the dashboard, try the following:"\n\
+echo "1. Verify your WALLET_ADDRESS is correct and has permissions"\n\
+echo "2. Check if the HyperLiquid API is accessible"\n\
+echo "3. Look for any error messages in the logs above"\n\
+\n\
 wait $PID\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 

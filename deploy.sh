@@ -102,7 +102,11 @@ echo -e "   Dockerfile.render is correctly configured to run the risk_dashboard 
 echo -e "   ${GREEN}CMD [\"sh\", \"-c\", \"./target/release/risk_dashboard\"]${NC}"
 echo -e "3. If the application is running but not responding to requests, try the updated Dockerfile"
 echo -e "   with the startup script that checks if the application is responding."
-echo -e "4. Run the test script to check if your API endpoints are accessible:"
+echo -e "4. If API endpoints return HTML instead of JSON or you see 502 Bad Gateway errors, make sure:"
+echo -e "   - Your WALLET_ADDRESS environment variable is set correctly in the Render dashboard"
+echo -e "   - The wallet address is valid and has the necessary permissions"
+echo -e "   - See API_RESPONSE_FIX.md for detailed troubleshooting steps"
+echo -e "5. Run the test script to check if your API endpoints are accessible:"
 echo -e "   ${GREEN}./check_app_response.sh https://hyper-risk.onrender.com${NC}"
 echo -e "   (Replace with your actual Render URL)"
 echo

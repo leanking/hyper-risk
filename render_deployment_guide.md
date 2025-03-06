@@ -126,7 +126,23 @@ This will build and run your Docker container locally. If it works correctly, yo
      - This will help diagnose if the application is binding correctly and responding to requests.
      - For more detailed troubleshooting, see the RENDER_DEPLOYMENT_DEBUG.md file.
 
-4. **Application crashes immediately after deployment**
+4. **API endpoints return HTML or 502 Bad Gateway errors**
+   - If you see HTML being returned instead of JSON for API endpoints, or 502 Bad Gateway errors, it usually means the application is running but not properly connecting to the HyperLiquid API.
+   - This is often caused by missing or incorrect environment variables, especially the WALLET_ADDRESS.
+   - Solution:
+     - Make sure these environment variables are set in your Render dashboard:
+       ```
+       WALLET_ADDRESS=your_hyperliquid_wallet_address
+       PORT=8080
+       DASHBOARD_PORT=8080
+       RUST_LOG=info
+       RENDER=true
+       ```
+     - Verify that your wallet address is valid and has the necessary permissions
+     - Update the Dockerfile to include better error handling and environment variable checks
+     - For more detailed troubleshooting, see the API_RESPONSE_FIX.md file
+
+5. **Application crashes immediately after deployment**
    - Check the Render logs for error messages
    - Ensure all required environment variables are set
    - Verify that the `PORT` and `DASHBOARD_PORT` environment variables are set to 8080

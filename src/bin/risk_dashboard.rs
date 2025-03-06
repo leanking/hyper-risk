@@ -481,8 +481,8 @@ async fn main() -> std::io::Result<()> {
                 .add((header::X_CONTENT_TYPE_OPTIONS, "nosniff"))
                 // Prevent clickjacking
                 .add((header::X_FRAME_OPTIONS, "DENY"))
-                // Very permissive CSP for debugging
-                .add((header::CONTENT_SECURITY_POLICY, "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';"))
+                // Updated CSP with explicit unsafe-eval in script-src
+                .add((header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' *; img-src 'self' * data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"))
                 // Referrer policy
                 .add((header::REFERRER_POLICY, "strict-origin-when-cross-origin"))
                 // Permissions policy
