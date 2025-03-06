@@ -9,7 +9,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Default URLs if not provided
-RENDER_URL=${1:-"https://hyper-flow.onrender.com"}
+RENDER_URL=${1:-"https://hyper-risk.onrender.com"}
 CUSTOM_DOMAIN=${2:-"hyper-flow.xyz"}
 
 echo -e "${YELLOW}Checking HyperLiquid Risk Dashboard Availability${NC}"

@@ -385,45 +385,63 @@ If your application was running but is now stuck in a loading loop or unavailabl
 
 ### Service Shows as "Live" but Not Responding
 
-If your Render service shows as "Live" but the application is not responding (stuck in a loading loop) and logs haven't updated recently:
+If your service shows as "Live" in Render, logs are being generated (showing the application is running), but you still can't access the website:
 
-1. **Check for Application Deadlock**:
-   - Your application might be running but in a deadlocked or frozen state
-   - This can happen if there are thread deadlocks, infinite loops, or resource exhaustion
-   - The application process is still running (so Render shows it as "Live") but it's not processing requests
+1. **Check Server Binding Address**:
+   - The most common cause is binding to `localhost` or `127.0.0.1` instead of `0.0.0.0`
+   - In your logs, you might see: `Starting dashboard server on http://localhost:8080`
+   - This means your server is only accepting connections from within the same machine
+   - Render requires you to bind to `0.0.0.0` (all interfaces) to accept external connections
 
-2. **Memory Leaks**:
-   - Check if your application is using excessive memory
-   - Memory leaks can cause the application to become unresponsive without crashing
-   - In the Render dashboard, check the memory usage graph for your service
+2. **How to Fix the Binding Issue**:
+   - Find where your server is being initialized in your code
+   - Change the binding from `localhost` or `127.0.0.1` to `0.0.0.0`
+   - Examples for different web frameworks:
 
-3. **Connection Pool Issues**:
-   - If your application uses database connections or other external resources
-   - Connection pools might be exhausted or in an invalid state
-   - This is common when connections aren't properly closed after errors
+   ```rust
+   // Warp
+   // INCORRECT:
+   warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+   // CORRECT:
+   warp::serve(routes).run(([0, 0, 0, 0], port)).await;
 
-4. **Restart the Service**:
-   - In the Render dashboard, click the "Manual Deploy" button
-   - Select "Deploy latest commit" (or "Clear build cache & deploy" if you suspect cache issues)
-   - This will restart your application without rebuilding it
+   // Hyper
+   // INCORRECT:
+   let addr = ([127, 0, 0, 1], port).into();
+   // CORRECT:
+   let addr = ([0, 0, 0, 0], port).into();
 
-5. **Check for Long-Running Operations**:
-   - Your application might be stuck in a long-running operation
-   - Check if there are any background tasks, API calls, or database operations that could be timing out
+   // Rocket
+   // INCORRECT: (default is localhost)
+   // CORRECT:
+   let figment = rocket::Config::figment()
+       .merge(("port", port))
+       .merge(("address", "0.0.0.0"));
+   rocket::custom(figment)...
 
-6. **Inspect Recent Logs Before the Silence**:
-   - Look at the last few log entries before the 15-minute silence
-   - They might contain warnings or errors that indicate what caused the application to stop responding
+   // Actix-web
+   // INCORRECT:
+   .bind(("127.0.0.1", port))?
+   // CORRECT:
+   .bind(("0.0.0.0", port))?
+   ```
 
-7. **Verify Port Configuration**:
-   - Ensure your application is listening on the correct port
-   - Render sets the `PORT` environment variable, and your application must use this port
-   - Check that your code properly reads and uses the `PORT` environment variable
+3. **Verify Port Environment Variable**:
+   - Ensure your application is using the `PORT` environment variable set by Render
+   - Your logs show you're using port 8080, which is fine if you're reading it from the `PORT` variable
+   - If you're hardcoding the port, change it to use the environment variable:
 
-8. **Implement Better Logging**:
-   - Add periodic heartbeat logs to your application
-   - Log startup completion and readiness to serve requests
-   - This will help identify if the application is truly running or stuck in initialization
+   ```rust
+   let port = std::env::var("PORT")
+       .ok()
+       .and_then(|p| p.parse::<u16>().ok())
+       .unwrap_or(8080);
+   ```
+
+4. **Redeploy After Fixing**:
+   - After changing the binding address, redeploy your application
+   - You should see in the logs: `Starting dashboard server on http://0.0.0.0:8080`
+   - This confirms your server is now accepting connections from all interfaces
 
 ### Fixing a Stuck Deployment
 
