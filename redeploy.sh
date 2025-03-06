@@ -6,7 +6,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== HyperLiquid Risk Dashboard Redeploy Script ===${NC}"
+echo -e "${GREEN}=== HyperLiquid Risk Dashboard Redeploy Script (Enhanced) ===${NC}"
 echo -e "${YELLOW}This script will help you redeploy your application to Render with the fixes for the loading loop issue.${NC}"
 echo
 
@@ -51,12 +51,21 @@ echo -e "3. Click on 'Manual Deploy' > 'Clear build cache & deploy'"
 echo -e "4. Wait for the deployment to complete (this may take a few minutes)"
 echo -e "5. Once deployed, your application should be accessible and no longer stuck in a loading loop"
 echo
+echo -e "${YELLOW}After deployment:${NC}"
+echo -e "1. Run the test script to check if your API endpoints are accessible:"
+echo -e "   ${GREEN}./test_api.sh YOUR_RENDER_URL${NC}"
+echo -e "   For example: ${GREEN}./test_api.sh https://hyper-risk.onrender.com${NC}"
+echo -e "2. If the test script shows that all endpoints are working but the dashboard is still loading,"
+echo -e "   open your browser's developer tools (F12) and check the console for errors."
+echo
 echo -e "${GREEN}The following fixes were applied:${NC}"
 echo -e "1. Changed server binding message from localhost to 0.0.0.0"
 echo -e "2. Updated port configuration to use the PORT environment variable set by Render"
-echo -e "3. Updated CORS configuration to allow any origin temporarily"
-echo -e "4. Updated Content Security Policy to allow connections to any domain temporarily"
+echo -e "3. Updated CORS configuration to be completely permissive (allow any origin, method, header)"
+echo -e "4. Updated Content Security Policy to allow all connections"
 echo -e "5. Added a health check endpoint for Render"
+echo -e "6. Added debugging code to the dashboard JavaScript"
+echo -e "7. Added environment variable logging for debugging"
 echo
 echo -e "${YELLOW}After confirming that your application is working correctly, you may want to revert the temporary CORS and CSP changes for better security.${NC}"
 echo -e "${GREEN}Done!${NC}" 

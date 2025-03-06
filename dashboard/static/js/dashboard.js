@@ -1,3 +1,52 @@
+// Debug mode - set to true to enable console logging
+const DEBUG = true;
+
+// Override fetch to log all API requests in debug mode
+const originalFetch = window.fetch;
+window.fetch = function(url, options) {
+    if (DEBUG) {
+        console.log(`Fetch request to: ${url}`, options);
+    }
+    
+    return originalFetch(url, options)
+        .then(response => {
+            if (DEBUG) {
+                // Clone the response so we can both log it and return it
+                const clone = response.clone();
+                clone.text().then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        console.log(`Response from ${url}:`, data);
+                    } catch (e) {
+                        console.log(`Response from ${url} (not JSON):`, text.substring(0, 500));
+                    }
+                });
+            }
+            return response;
+        })
+        .catch(error => {
+            if (DEBUG) {
+                console.error(`Error fetching ${url}:`, error);
+            }
+            throw error;
+        });
+};
+
+// Add a startup message
+console.log('Dashboard JavaScript loaded. Debug mode:', DEBUG);
+
+// Call debugAPI on page load to diagnose any issues
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, running API diagnostics...');
+    setTimeout(() => {
+        try {
+            debugAPI();
+        } catch (e) {
+            console.error('Error running API diagnostics:', e);
+        }
+    }, 1000);
+});
+
 // Global variables
 let refreshInterval;
 let selectedPosition = '';

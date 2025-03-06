@@ -414,6 +414,13 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(8080);
     
     println!("Starting dashboard server on http://0.0.0.0:{}", port);
+    info!("Starting dashboard server on http://0.0.0.0:{}", port);
+    
+    // Log environment variables for debugging
+    println!("Environment variables:");
+    println!("PORT={:?}", env::var("PORT"));
+    println!("DASHBOARD_PORT={:?}", env::var("DASHBOARD_PORT"));
+    println!("RENDER={:?}", env::var("RENDER"));
     
     // Configure rate limiting
     // Default: 300 requests per minute per client IP for general endpoints (increased from 60)
@@ -458,16 +465,11 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to create settings rate limiter configuration");
     
     HttpServer::new(move || {
-        // Configure CORS with more restrictive settings
+        // Configure CORS to be completely permissive
         let cors = Cors::default()
-            // Allow any origin temporarily to fix loading issues
             .allow_any_origin()
-            .allowed_methods(vec!["GET", "POST"])  // Only allow necessary methods
-            .allowed_headers(vec![
-                http::header::AUTHORIZATION,
-                http::header::ACCEPT,
-                http::header::CONTENT_TYPE,
-            ])
+            .allow_any_method()
+            .allow_any_header()
             .max_age(3600);
         
         // Base app with security headers
@@ -479,8 +481,8 @@ async fn main() -> std::io::Result<()> {
                 .add((header::X_CONTENT_TYPE_OPTIONS, "nosniff"))
                 // Prevent clickjacking
                 .add((header::X_FRAME_OPTIONS, "DENY"))
-                // XSS protection - allow connections to any domain temporarily
-                .add((header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.plot.ly; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' *"))
+                // Very permissive CSP for debugging
+                .add((header::CONTENT_SECURITY_POLICY, "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';"))
                 // Referrer policy
                 .add((header::REFERRER_POLICY, "strict-origin-when-cross-origin"))
                 // Permissions policy
