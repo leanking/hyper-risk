@@ -1,27 +1,11 @@
 services:
   - type: web
     name: hyperliquid-risk-dashboard
-    runtime: rust
+    runtime: docker
     plan: starter # Options: free, starter, standard, pro, plus
     region: oregon # Options: oregon, ohio, frankfurt, singapore
-    buildCommand: |
-      # Set up cargo cache to speed up builds
-      mkdir -p /opt/render/project/.cargo
-      cat > /opt/render/project/.cargo/config.toml << EOF
-      [build]
-      target-dir = "/opt/render/project/.cargo/target"
-      [net]
-      git-fetch-with-cli = true
-      EOF
-      # Use release profile with optimizations for build speed
-      RUSTFLAGS="-C opt-level=1" cargo build --release
-    startCommand: ./target/release/risk_dashboard
-    # If you're experiencing loading issues, try commenting out the healthCheckPath
-    # Render will use the default health check (checking if the port is open)
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    # Health check settings - adjust these if your app takes longer to start
-    # healthCheckTimeout: 60 # Seconds to wait for a health check to succeed
-    # healthCheckInterval: 15 # Seconds between health checks
     autoDeploy: true
     numInstances: 1
     domains:
@@ -71,25 +55,12 @@ services:
       # - key: SUPABASE_KEY
       #   sync: false
 
-    # Cache configuration for faster builds
-    cache:
-      - name: cargo-cache
-        mountPath: /opt/render/project/.cargo
-        type: volume
-        sizeGB: 5
-
     # Scaling configuration (uncomment if needed)
     # scaling:
     #   minInstances: 1
     #   maxInstances: 3
     #   targetMemoryPercent: 60
     #   targetCPUPercent: 60
-
-    # Disk configuration (uncomment if needed)
-    # disk:
-    #   name: data
-    #   mountPath: /data
-    #   sizeGB: 10
 
     # Custom HTTP headers (uncomment if needed)
     # headers:
