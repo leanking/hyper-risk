@@ -12,6 +12,8 @@ echo
 
 # Get the URL from the command line or use default
 URL=${1:-"http://localhost:8080"}
+# Remove trailing slash if present to prevent double slashes
+URL=${URL%/}
 
 echo -e "Checking application at: ${YELLOW}$URL${NC}"
 echo
