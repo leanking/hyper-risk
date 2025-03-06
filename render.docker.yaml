@@ -1,13 +1,21 @@
 services:
   - type: web
-    name: hyperliquid-risk-dashboard
-    runtime: docker
-    plan: starter # Options: free, starter, standard, pro, plus
-    region: oregon # Options: oregon, ohio, frankfurt, singapore
+    name: hyper-risk
+    env: docker
     dockerfilePath: ./Dockerfile.render
-    healthCheckPath: /health
-    autoDeploy: true
+    region: oregon
+    plan: free
+    branch: main
     numInstances: 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: WALLET_ADDRESS
+        sync: false
+      - key: RUST_LOG
+        value: info
+    autoDeploy: true
     domains:
       - risk-dashboard.example.com # Replace with your custom domain if needed
     envVars:
