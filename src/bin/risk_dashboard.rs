@@ -258,7 +258,7 @@ async fn debug_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Respo
                 "warning_count": summary.warning_count,
                 "margin_utilization": summary.margin_utilization,
                 "account_value": summary.account_value,
-                "debug": format!("{:?}", summary)
+                "debug_info": format!("{:?}", summary)
             });
             
             Ok(HttpResponse::Ok().json(response))
@@ -270,6 +270,14 @@ async fn debug_risk_summary(data: web::Data<Arc<AppState>>) -> Result<impl Respo
             })))
         }
     }
+}
+
+// Health check endpoint for Render
+async fn health_check() -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "status": "ok",
+        "message": "Service is healthy"
+    }))
 }
 
 #[actix_web::main]
@@ -399,12 +407,13 @@ async fn main() -> std::io::Result<()> {
     });
     
     // Start the HTTP server
-    let port = env::var("DASHBOARD_PORT")
+    let port = env::var("PORT")
+        .or_else(|_| env::var("DASHBOARD_PORT"))
         .ok()
         .and_then(|p| p.parse::<u16>().ok())
         .unwrap_or(8080);
     
-    println!("Starting dashboard server on http://localhost:{}", port);
+    println!("Starting dashboard server on http://0.0.0.0:{}", port);
     
     // Configure rate limiting
     // Default: 300 requests per minute per client IP for general endpoints (increased from 60)
@@ -451,10 +460,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         // Configure CORS with more restrictive settings
         let cors = Cors::default()
-            // Replace allow_any_origin() with specific allowed origins
-            // This will allow the Render domain and localhost for development
-            .allowed_origin("https://hyperliquid-risk-dashboard.onrender.com")  // Replace with your actual Render domain
-            .allowed_origin("http://localhost:8080")  // For local development
+            // Allow any origin temporarily to fix loading issues
+            .allow_any_origin()
             .allowed_methods(vec!["GET", "POST"])  // Only allow necessary methods
             .allowed_headers(vec![
                 http::header::AUTHORIZATION,
@@ -472,8 +479,8 @@ async fn main() -> std::io::Result<()> {
                 .add((header::X_CONTENT_TYPE_OPTIONS, "nosniff"))
                 // Prevent clickjacking
                 .add((header::X_FRAME_OPTIONS, "DENY"))
-                // XSS protection
-                .add((header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.plot.ly; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'"))
+                // XSS protection - allow connections to any domain temporarily
+                .add((header::CONTENT_SECURITY_POLICY, "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.plot.ly; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self' *"))
                 // Referrer policy
                 .add((header::REFERRER_POLICY, "strict-origin-when-cross-origin"))
                 // Permissions policy
@@ -507,6 +514,9 @@ async fn main() -> std::io::Result<()> {
         if is_development {
             app = app.route("/api/debug/risk_summary", web::get().to(debug_risk_summary));
         }
+        
+        // Add health check endpoint for Render
+        app = app.route("/health", web::get().to(health_check));
         
         // Static files with higher rate limit
         app.service(
