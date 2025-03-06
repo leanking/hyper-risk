@@ -1,9 +1,8 @@
 /target
 .idea/
 Cargo.lock
-
 cursor-rules/
-
+backup_20250305_203734
 .env
 PROJECT_GOALS.md
 rust.mdc

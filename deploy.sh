@@ -6,8 +6,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== HyperLiquid Risk Dashboard Docker Deployment (Fixed) ===${NC}"
-echo -e "${YELLOW}This script will help you deploy your application to Render using Docker with the fixed Dockerfile.${NC}"
+echo -e "${GREEN}=== HyperLiquid Risk Dashboard Render Deployment (Fixed) ===${NC}"
+echo -e "${YELLOW}This script will help you deploy your application to Render using Docker with the fixed configuration.${NC}"
 echo
 
 # Check if git is installed
@@ -22,14 +22,19 @@ if ! git rev-parse --is-inside-work-tree &> /dev/null; then
     exit 1
 fi
 
-# Create Cargo.lock if it doesn't exist
-if [ ! -f Cargo.lock ]; then
-    echo -e "${YELLOW}Cargo.lock file not found. Creating one...${NC}"
-    cargo generate-lockfile
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}Successfully created Cargo.lock file.${NC}"
-    else
-        echo -e "${RED}Failed to create Cargo.lock file. Continuing anyway...${NC}"
+# Test Docker configuration locally first
+echo -e "${YELLOW}Would you like to test the Docker configuration locally first? (y/n)${NC}"
+read -r test_locally
+if [[ "$test_locally" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo -e "${YELLOW}Testing Docker configuration locally...${NC}"
+    chmod +x docker_debug.sh
+    ./docker_debug.sh
+    
+    echo -e "${YELLOW}Did the local test work correctly? (y/n)${NC}"
+    read -r test_success
+    if [[ ! "$test_success" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo -e "${RED}Please fix any issues with the Docker configuration before deploying to Render.${NC}"
+        exit 1
     fi
 fi
 
@@ -69,8 +74,11 @@ echo
 echo -e "7. Wait for the deployment to complete (this may take 5-10 minutes)"
 echo
 echo -e "${YELLOW}After deployment:${NC}"
-echo -e "1. Run the test script to check if your API endpoints are accessible:"
+echo -e "1. Check the Render logs for any errors"
+echo -e "2. Run the test script to check if your API endpoints are accessible:"
 echo -e "   ${GREEN}./test_api.sh https://hyper-risk.onrender.com${NC}"
 echo -e "   (Replace with your actual Render URL)"
+echo
+echo -e "${YELLOW}If you encounter any issues, refer to the render_deployment_guide.md file for troubleshooting tips.${NC}"
 echo
 echo -e "${GREEN}Done!${NC}" 
